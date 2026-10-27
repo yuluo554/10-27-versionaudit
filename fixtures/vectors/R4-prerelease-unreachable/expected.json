@@ -1,0 +1,18 @@
+{
+  "rule": "R4",
+  "description": "预发布可达性必须区分「范围不可达」与「目标不在候选集」两态",
+  "mustContain": [
+    { "path": "findings[?package=pre-unreachable].rule", "value": "R4" },
+    { "path": "findings[?package=pre-unreachable].evidence", "contains": "prerelease-unreachable" },
+    { "path": "findings[?package=pre-off-target].rule", "value": "R4" },
+    { "path": "findings[?package=pre-off-target].evidence", "contains": "target-not-in-candidate" }
+  ],
+  "mustNotContain": [{ "path": "findings[?package=pre-reachable].rule", "value": "R4" }],
+  "exitCode": 1,
+  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "sources": [
+    "data/README.md §1.1 A8（^1.0.0 不匹配 1.0.0-beta）",
+    "data/README.md §1.1 A9（^1.2.3-beta 匹配 1.2.3-beta.2）",
+    "plan/01 §3.1 R4（必须区分两态）"
+  ]
+}

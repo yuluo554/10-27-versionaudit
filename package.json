@@ -1,0 +1,44 @@
+{
+  "name": "versionaudit",
+  "version": "0.1.0",
+  "description": "Offline npm version-constraint auditor: range semantics, lock/manifest divergence with requester paths, and dedupe feasibility proofs.",
+  "keywords": ["semver", "lockfile", "npm", "audit", "dependency", "cli", "offline"],
+  "type": "module",
+  "bin": {
+    "versionaudit": "bin/versionaudit.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "docs/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "gate:layout": "node tools/check-sprint-layout.mjs",
+    "gate:desensitize": "node tools/check-desensitized.mjs",
+    "gate:scope": "node tools/check-scope.mjs",
+    "gate:provenance": "node tools/check-provenance.mjs",
+    "gate:vectors": "node tools/check-vectors.mjs",
+    "gate:workflows": "node tools/check-workflows.mjs",
+    "gate:mutation": "node tools/verify-layout-mutations.mjs",
+    "smoke:offline": "node tools/offline-smoke.mjs",
+    "gate:all": "npm run gate:layout && npm run gate:desensitize && npm run gate:scope && npm run gate:provenance && npm run gate:workflows && npm test && npm run smoke:offline"
+  },
+  "dependencies": {
+    "semver": "7.8.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yuluo554/10-27-versionaudit.git"
+  },
+  "author": "yuluo554",
+  "license": "MIT",
+  "private": false
+}

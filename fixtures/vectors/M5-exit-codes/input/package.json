@@ -1,0 +1,9 @@
+{
+  "name": "fixture-m5",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "ok": "^1.0.0",
+    "empty": ">=1.0.0 <1.0.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "rule": "R5",
+  "description": "空交集的两种形态（同界与倒置）都必须报 error；正常范围不得误报",
+  "mustContain": [
+    { "path": "findings[?package=empty-same].rule", "value": "R5" },
+    { "path": "findings[?package=empty-same].severity", "value": "error" },
+    { "path": "findings[?package=empty-inverted].rule", "value": "R5" },
+    { "path": "findings[?package=empty-inverted].severity", "value": "error" }
+  ],
+  "mustNotContain": [{ "path": "findings[?package=ok].rule", "value": "R5" }],
+  "exitCode": 1,
+  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "sources": [
+    "data/README.md §1.1 A11（satisfies('1.0.0','>=1.0.0 <1.0.0') = false，永不可满足）",
+    "data/README.md §7.3（R5 空交集默认 error → 退出码 1）"
+  ]
+}

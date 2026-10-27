@@ -1,0 +1,19 @@
+# 冻结产物与跨平台一致性：文本一律 LF（避免 Windows 检出 CRLF 后
+# "双跑逐字节一致"与 --check 在两个平台上得出不同结果）
+* text=auto eol=lf
+
+# 样例与向量是冻结产物：禁手工编辑（改体例 = 重跑生成器整目录重生成）
+examples/*.json text eol=lf
+fixtures/vectors/**/expected.json text eol=lf
+
+# 二进制不参与 EOL 转换
+*.png binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.gz binary
+*.woff binary
+*.woff2 binary
+
+# 锁文件：必须逐字节稳定（CI 依赖它）
+package-lock.json text eol=lf

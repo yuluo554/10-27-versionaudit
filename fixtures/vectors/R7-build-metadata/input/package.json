@@ -1,0 +1,9 @@
+{
+  "name": "fixture-r7",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "with-build": "1.0.0+build.1",
+    "plain": "1.0.0"
+  }
+}

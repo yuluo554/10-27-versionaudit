@@ -1,0 +1,8 @@
+{
+  "name": "fixture-m2",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "send": "^0.19.2"
+  }
+}

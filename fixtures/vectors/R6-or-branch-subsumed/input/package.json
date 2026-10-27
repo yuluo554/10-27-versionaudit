@@ -1,0 +1,10 @@
+{
+  "name": "fixture-r6",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "subsumed": "^1.0.0 || ^1.2.0",
+    "star-subsumed": "* || ^1.0.0",
+    "disjoint": "^1.0.0 || ^2.0.0"
+  }
+}

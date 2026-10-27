@@ -1,0 +1,10 @@
+{
+  "name": "fixture-r8",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "bare": "1.2.3",
+    "bare-zero": "0.2.3",
+    "explicit-caret": "^1.2.3"
+  }
+}

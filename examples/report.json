@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "tool": {
+    "name": "versionaudit",
+    "version": "0.1.0",
+    "informationUri": "https://github.com/yuluo554/10-27-versionaudit"
+  },
+  "implementation": {
+    "library": "node-semver",
+    "version": "7.8.5"
+  },
+  "policy": {
+    "name": "builtin-default",
+    "overrides": {},
+    "failOn": "error",
+    "strict": false,
+    "prefer": null,
+    "ignorePeer": false,
+    "maxRequesters": 12,
+    "note": "默认档位是策略，不是事实；--severity-map 可整表覆盖"
+  },
+  "input": {
+    "manifest": "package.json",
+    "lockfile": "package-lock.json",
+    "lockfileVersion": 3,
+    "format": "v3",
+    "declarations": 1,
+    "packages": 3,
+    "reachable": 2
+  },
+  "summary": {
+    "error": 1,
+    "warning": 0,
+    "info": 1,
+    "total": 2,
+    "highest": "error"
+  },
+  "findings": [
+    {
+      "rule": "R3",
+      "package": "send",
+      "declaration": "dependencies",
+      "rawRange": "^0.19.2",
+      "expandedRange": ">=0.19.2 <0.20.0-0",
+      "severity": "info",
+      "evidence": "validRange(\"^0.19.2\") = \">=0.19.2 <0.20.0-0\"（上界被收窄到同一 minor/patch 内）"
+    },
+    {
+      "kind": "manifest-not-satisfied",
+      "declaringPackage": "fixture-m2",
+      "declaringPath": [
+        "<root>"
+      ],
+      "dependency": "send",
+      "declaredRange": "^0.19.2",
+      "lockedVersion": "0.18.0",
+      "requesterPath": [
+        "<root>"
+      ],
+      "explanation": "fixture-m2 声明 send@^0.19.2，锁中解析为 0.18.0",
+      "severity": "error"
+    }
+  ],
+  "dedupe": [],
+  "conflicts": [],
+  "degraded": [],
+  "internalInconsistency": null
+}

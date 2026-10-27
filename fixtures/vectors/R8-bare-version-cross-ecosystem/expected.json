@@ -1,0 +1,20 @@
+{
+  "rule": "R8",
+  "description": "裸版本在 npm 是精确锁定、在 Cargo 是 caret；默认关闭，--enable-r8 才提示（info）",
+  "args": ["--enable-r8"],
+  "mustContain": [
+    { "path": "findings[?package=bare].rule", "value": "R8" },
+    { "path": "findings[?package=bare].severity", "value": "info" },
+    { "path": "findings[?package=bare].expandedRange", "value": "1.2.3" },
+    { "path": "findings[?package=bare].evidence", "contains": "Cargo" },
+    { "path": "findings[?package=bare-zero].rule", "value": "R8" }
+  ],
+  "mustNotContain": [{ "path": "findings[?package=explicit-caret].rule", "value": "R8" }],
+  "exitCode": 0,
+  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "sources": [
+    "data/README.md §1.1 A15（validRange('1.2.3') = '1.2.3'，无上界）",
+    "data/README.md §2（裸 1.2.3：npm 精确 / Cargo >=1.2.3,<2.0.0）",
+    "plan/01 §3.1 R8（默认关闭，无法从文件推断作者意图）"
+  ]
+}

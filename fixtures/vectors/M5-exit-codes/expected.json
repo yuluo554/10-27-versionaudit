@@ -1,0 +1,18 @@
+{
+  "rule": "M5",
+  "description": "退出码矩阵：R5 空交集与 M2 不满足都是 error → 退出码 1；且两条独立维度都必须在场",
+  "mustContain": [
+    { "path": "findings[?package=empty].rule", "value": "R5" },
+    { "path": "findings[?kind=manifest-not-satisfied].dependency", "value": "empty" },
+    { "path": "summary.error", "value": 2 },
+    { "path": "summary.highest", "value": "error" },
+    { "path": "policy.failOn", "value": "error" }
+  ],
+  "mustNotContain": [{ "path": "findings[?package=ok].severity", "value": "error" }],
+  "exitCode": 1,
+  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "sources": [
+    "data/README.md §7.3（退出码矩阵与优先级 3 > 4 > 1 > 2 > 0）",
+    "data/README.md §7.4（--fail-on 默认 error，报告须回显）"
+  ]
+}

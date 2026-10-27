@@ -1,0 +1,10 @@
+{
+  "name": "fixture-r4",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "pre-unreachable": "^1.0.0",
+    "pre-reachable": "^1.2.3-beta",
+    "pre-off-target": "^1.0.0"
+  }
+}

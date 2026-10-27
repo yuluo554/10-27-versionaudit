@@ -1,0 +1,21 @@
+{
+  "rule": "R2",
+  "description": "* 是宽范围；latest 必须判为「非 semver 范围」（notARange），不是宽范围",
+  "mustContain": [
+    { "path": "findings[?package=wild].rule", "value": "R2" },
+    { "path": "findings[?package=wild].expandedRange", "value": "*" },
+    { "path": "findings[?package=tagged].rule", "value": "R2" },
+    { "path": "findings[?package=tagged].expandedRange", "value": null },
+    { "path": "findings[?package=tagged].notARange", "value": true }
+  ],
+  "mustNotContain": [
+    { "path": "findings[?package=wild].notARange", "value": true },
+    { "path": "findings[?package=tagged].rule", "value": "R1" }
+  ],
+  "exitCode": 0,
+  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "sources": [
+    "data/README.md §1.1 A13（validRange('latest') = null → 是 dist-tag，不是范围）",
+    "data/README.md §1.1 A14（* 与空串等价，validRange 均为 '*'）"
+  ]
+}

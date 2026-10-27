@@ -1,0 +1,10 @@
+{
+  "name": "fixture-r5",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "empty-same": ">=1.0.0 <1.0.0",
+    "empty-inverted": ">=2.0.0 <1.0.0",
+    "ok": ">=1.0.0 <2.0.0"
+  }
+}

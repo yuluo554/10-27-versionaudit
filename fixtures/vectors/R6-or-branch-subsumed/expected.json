@@ -1,0 +1,16 @@
+{
+  "rule": "R6",
+  "description": "|| 分支被包含（^1.2.0 ⊂ ^1.0.0、^1.0.0 ⊂ *）必须报；互不包含的不得报",
+  "mustContain": [
+    { "path": "findings[?package=subsumed&rule=R6].rule", "value": "R6" },
+    { "path": "findings[?package=star-subsumed&rule=R6].rule", "value": "R6" },
+    { "path": "findings[?package=subsumed&rule=R6].evidence", "contains": "subset" }
+  ],
+  "mustNotContain": [{ "path": "findings[?package=disjoint&rule=R6]", "present": true }],
+  "exitCode": 0,
+  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "sources": [
+    "data/README.md §1.1 A12（intersects 两两判定；subset 是它的子集判定对应物）",
+    "plan/01 §3.1 R6（^1.0.0 || ^1.2.0 后者被包含；* || ^1.0.0 整支被包含；^1.0.0 || ^2.0.0 为反例）"
+  ]
+}

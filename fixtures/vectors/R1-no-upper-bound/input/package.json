@@ -1,0 +1,8 @@
+{
+  "name": "fixture-r1",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "no-upper": ">=1.2.0"
+  }
+}

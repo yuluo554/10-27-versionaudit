@@ -1,0 +1,133 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ── 布局门 / 脱敏门 / 范围门 / 溯源门：一条 job 四个 step（都不需要网络） ──────────
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pinned deps
+        run: npm install --no-audit --no-fund
+
+      - name: "Sprint layout gate (methodology binding)"
+        run: node tools/check-sprint-layout.mjs
+
+      - name: "Layout gate mutation verification (each criterion must be falsified once)"
+        run: node tools/verify-layout-mutations.mjs
+
+      - name: "Desensitization gate (no host paths / usernames / local proxy)"
+        run: node tools/check-desensitized.mjs
+
+      - name: "Scope gate (no license-compliance capability)"
+        run: node tools/check-scope.mjs
+
+      - name: "Provenance gate (every assertion has a ledger anchor)"
+        run: node tools/check-provenance.mjs
+
+      - name: "Workflow gate (catch jobs=0 shapes before push)"
+        run: node tools/check-workflows.mjs
+
+  # ── 测试矩阵：Node 20 / 22 / 24 ──────────────────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22", "24"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install pinned deps
+        run: npm install --no-audit --no-fund
+
+      - name: Unit + vector tests
+        run: npm test
+
+      - name: "Vector gate (12 differential vectors incl. end-to-end exit codes)"
+        run: node tools/check-vectors.mjs
+
+      - name: "Frozen examples reproduce byte-for-byte"
+        run: node tools/gen-examples.mjs --check
+
+      - name: "Offline smoke (in-process network hooks must never fire)"
+        run: node tools/offline-smoke.mjs
+
+  # ── 真·无网络 job：普通 runner + 嵌套 docker run --network none ────────────────
+  # 为什么不用 `container.options: --network none`：Actions 建 job 容器时总是先建
+  # user-defined network，再叠加 `--network none` 是 docker 的互斥选项（实测 Exit 125）。
+  # 正解 = 不把 job 放进容器，改为运行期 `docker run --network none`。
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build offline image (network allowed at build time)
+        run: |
+          cat > .github/offline.Dockerfile <<'DOCKERFILE'
+          FROM node:20-alpine
+          WORKDIR /work
+          # 依赖在构建期装好；运行期完全无网络
+          COPY package.json ./
+          RUN npm install --no-audit --no-fund
+          COPY . /work
+          DOCKERFILE
+          docker build -f .github/offline.Dockerfile -t versionaudit-offline .
+
+      - name: Run CLI with no network at all
+        run: |
+          docker run --rm --network none versionaudit-offline \
+            sh -c 'node bin/versionaudit.mjs audit fixtures/vectors/M2-lock-manifest/input --format=json > /dev/null; test $? -eq 1'
+
+      - name: Offline smoke inside the container
+        run: |
+          docker run --rm --network none versionaudit-offline node tools/offline-smoke.mjs
+
+      - name: Assert no network syscalls reach out (dns is unreachable)
+        run: |
+          docker run --rm --network none versionaudit-offline \
+            node -e "require('dns').lookup('registry.npmjs.org', (e) => { if (!e) { console.error('DNS resolved — network is up, test invalid'); process.exit(1); } console.log('DNS blocked as expected:', e.code); })"
+
+  # ── 发布 job：只在 tag push 时产出发布附件 ────────────────────────────────────
+  release-artifacts:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [gates, test, offline]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build source archive from the tag tree
+        run: |
+          mkdir -p dist
+          git archive --format=tar --prefix=versionaudit/ "${GITHUB_REF_NAME}" | gzip -9n > "dist/versionaudit-${GITHUB_REF_NAME}.tar.gz"
+          cd dist && sha256sum versionaudit-*.tar.gz > SHA256SUMS && cat SHA256SUMS
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.ref_name }}
+          path: dist/*
+          if-no-files-found: error

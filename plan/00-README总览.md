@@ -1,3 +1,5 @@
+> 方法论：`ai-tool-project-sprint`（装订 2026-10-27）｜布局门：`node tools/check-sprint-layout.mjs`｜续接对话第一件事 = 跑它
+
 # 10-27-versionaudit · 项目总览
 
 离线版本约束审计器。纯本地 CLI，只读 `package.json` / `package-lock.json`，零联网。
@@ -83,24 +85,25 @@
 
 | 承诺 | 证据 | 状态 |
 |---|---|---|
-| 范围展开不编造 | 12 条语义实测台账（node-semver 7.8.5 / packaging 26.3），M1 正反例向量逐条覆盖 | 待实现，事实已锁定 |
-| 锁不一致给请求者路径 | 实测 `npm ci` 只报 `send@0.18.0 does not satisfy send@0.19.2`，无范围/来源 | 已验证短板 |
-| 重复版本不告警 | 实测双 `ms` 版本树 `npm ls --all` 退出码 0 | 已验证短板 |
-| 去重只有布尔 | `pnpm dedupe --check` help 原文 + pnpm#16356（`dedupe` 后 `--check` 仍失败） | 已验证短板 |
-| 同样字符不同含义 | npm vs Cargo 官方 reference 原文对照 | 已验证 |
+| 范围展开不编造 | 12 条语义实测台账（node-semver 7.8.5 / packaging 26.3）；`tests/semver/interval.test.mjs` 逐条覆盖 A1–A16；`expandedRange` 差异测试 | ✅ M0 已可跑红 |
+| 锁不一致给请求者路径 | 实测 `npm ci` 只报 `send@0.18.0 does not satisfy send@0.19.2`，无范围/来源；M2 每条 finding 强制带 `requesterPath`，`tests/checks/lock-manifest` 断言 | ✅ 已验证短板且已补位 |
+| 重复版本不告警 | 实测双 `ms` 版本树 `npm ls --all` 退出码 0；M3 给出三态判定，`tests/proof/m3-dedupe` 覆盖收敛与不可收敛两态 | ✅ 已验证短板且已补位 |
+| 去重只有布尔 | `pnpm dedupe --check` help 原文 + pnpm#16356（`dedupe` 后 `--check` 仍失败） | ✅ 已验证短板 |
+| 同样字符不同含义 | npm vs Cargo 官方 reference 原文对照 | ✅ 已验证 |
 | 交集层是空的 | `semver intersection` total_count=4，最高 9★ | ⬜ 软论据（403 限流已标注） |
 | 需求真实 | HN 14 条原话 + pnpm issue 标题 + 下游 issue 1022 条规模 | ✅ |
 
 ## 里程碑
 
-| 里程碑 | 内容 | 完成条件（DoD） |
-|---|---|---|
-| **M1 数据先行** | 测试向量集：每条实测语义一个正例一个反例 | `fixtures/vectors/` 下 R1–R8 + M2–M5 目录齐备；每目录 `expected.json` 含 `mustContain`/`mustNotContain`/`exitCode`/`implementationVersions`；所有断言可追溯到 `data/README.md` |
-| **M2 范围语义** | `range-lint` 实现 R1–R8 | 向量全绿；`expandedRange` 全部来自库调用；差分测试（工具 vs 直接用 semver 库）一致 |
-| **M3 锁一致性** | `lock-manifest-check`（v1/v2/v3） | 复现 `send` 场景并输出声明项/范围/锁中版本/请求者路径；三版本锁均有用例 |
-| **M4 收敛可行性** | `dedupe-feasibility` 三态 + MUS | 20 包真实树上给出确定性结论；MUS 可机械校验（移除任一元素冲突消失）；超限降级显式声明 |
-| **M5 冲突解释与门禁** | `conflict-explain` + `report-ci` | `minimalSet` 属性测试通过；退出码矩阵全覆盖；JSON/SARIF 通过 schema；零联网验收 |
-| **M6 发布** | GitHub 公开仓库 | **DoD = git tag + GitHub Release 附产物 + 发布留档三件套**（tag 名 / Release 链接与产物清单 / 发布留档说明）；署名 `yuluo554` |
+| 里程碑 | 内容 | 状态 | 完成条件（DoD） |
+|---|---|---|---|
+| M0 | 计划套件 + 方法论装订 + 部署骨架 | ✅ | `plan/00–06` 齐备；`AGENTS.md` + 布局门 + 脱敏门在 CI 有步骤；CLI 骨架 `--version`/`--help` 可跑；`npm test` 绿（本地等价校验，未接远端，CI 待首推验证） |
+| M1 | 数据先行（向量集） | ⬜ | 12 组目录齐备（**已提前落位，端到端 12/12 跑通**）；每目录 `expected.json` 含 `mustContain`/`mustNotContain`/`exitCode`/`implementationVersions`/`sources`；**剩余：按 `data/README.md` §1.1 逐条复核覆盖率并补齐正反例对** |
+| M2 | 范围语义（`range-lint` 实现 R1–R8） | ⬜ | 向量全绿；`expandedRange` 全部来自库调用；差分测试（工具 vs 直接用 semver 库）一致 |
+| M3 | 锁一致性（`lock-manifest-check` v1/v2/v3） | ⬜ | 复现 `send` 场景并输出声明项/范围/锁中版本/请求者路径；三版本锁均有用例 |
+| M4 | 收敛可行性（`dedupe-feasibility` 三态 + MUS） | ⬜ | 20 包真实树上给出确定性结论；MUS 可机械校验；超限降级显式声明 |
+| M5 | 冲突解释与门禁（`conflict-explain` + `report-ci`） | ⬜ | `minimalSet` 属性测试通过；退出码矩阵全覆盖；JSON/SARIF 通过 schema；零联网验收 |
+| M6 | 发布（GitHub 公开仓库） | ⬜ | **DoD = git tag + GitHub Release 附产物 + 发布留档三件套**；署名 `yuluo554` |
 
 ## 仓库约定
 

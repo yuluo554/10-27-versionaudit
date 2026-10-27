@@ -1,0 +1,10 @@
+{
+  "name": "fixture-r3",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "caret-zero-minor": "^0.2.3",
+    "caret-zero-patch": "^0.0.3",
+    "caret-normal": "^1.2.3"
+  }
+}

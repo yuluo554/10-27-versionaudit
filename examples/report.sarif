@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "versionaudit",
+          "version": "0.1.0",
+          "informationUri": "https://github.com/yuluo554/10-27-versionaudit",
+          "rules": [
+            {
+              "id": "R3",
+              "name": "R3",
+              "shortDescription": {
+                "text": "caret/tilde 在 0.x 上的语义收窄"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            },
+            {
+              "id": "undefined",
+              "name": "undefined",
+              "shortDescription": {
+                "text": "undefined"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "R3",
+          "level": "note",
+          "message": {
+            "text": "send: 范围 ^0.19.2 → >=0.19.2 <0.20.0-0"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "<input>/package.json"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "severity": "info",
+            "expandedRange": ">=0.19.2 <0.20.0-0"
+          }
+        },
+        {
+          "ruleId": "undefined",
+          "level": "error",
+          "message": {
+            "text": "fixture-m2 声明 send@^0.19.2，锁中为 0.18.0；请求者路径 <root>"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "<input>/package.json"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "severity": "error",
+            "requesterPath": [
+              "<root>"
+            ],
+            "declaredRange": "^0.19.2",
+            "lockedVersion": "0.18.0"
+          }
+        }
+      ],
+      "properties": {
+        "policy": "builtin-default",
+        "schemaVersion": 1
+      }
+    }
+  ]
+}

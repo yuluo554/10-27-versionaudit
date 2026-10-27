@@ -1,0 +1,14 @@
+{
+  "rule": "R7",
+  "description": "build metadata 不提供任何额外约束（展开后与去掉 +… 完全相同），默认 info",
+  "mustContain": [
+    { "path": "findings[?package=with-build].rule", "value": "R7" },
+    { "path": "findings[?package=with-build].severity", "value": "info" },
+    { "path": "findings[?package=with-build].expandedRange", "value": "1.0.0" },
+    { "path": "findings[?package=with-build].evidence", "contains": "build metadata" }
+  ],
+  "mustNotContain": [{ "path": "findings[?package=plain].rule", "value": "R7" }],
+  "exitCode": 0,
+  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "sources": ["data/README.md §1.1 A10（build metadata 不参与比较；1.0.0+build.1 与 1.0.0 互相 satisfy）"]
+}

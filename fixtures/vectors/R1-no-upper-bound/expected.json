@@ -1,0 +1,19 @@
+{
+  "rule": "R1",
+  "description": "声明范围无上界（>=1.2.0 没有 < 上界）",
+  "mustContain": [
+    { "path": "findings[0].rule", "value": "R1" },
+    { "path": "findings[0].package", "value": "no-upper" },
+    { "path": "findings[0].rawRange", "value": ">=1.2.0" },
+    { "path": "findings[0].expandedRange", "value": ">=1.2.0" },
+    { "path": "findings[0].severity", "value": "warning" },
+    { "path": "findings[0].evidence", "contains": "无上界" }
+  ],
+  "mustNotContain": [
+    { "path": "findings", "value": "R5" },
+    { "path": "findings", "value": "R6" }
+  ],
+  "exitCode": 0,
+  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "sources": ["data/README.md §1.1 A15（裸版本是精确锁定，故 >=1.2.0 不是精确锁定）", "data/README.md §7.3（R1 默认 warning，不影响退出码）"]
+}
