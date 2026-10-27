@@ -12,7 +12,7 @@
  * 退出码：0 全部符合预期 / 1 有组不符 / 2 用法错误。
  */
 
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -293,6 +293,21 @@ const GROUPS = [
         }
         throw new Error("缺口表没有数据行");
       });
+    },
+  },
+  {
+    id: "L5b-handoff-renamed-next",
+    desc: "把交接单改成「下一棒」命名（HANDOFF-M0 → HANDOFF-M1）→ LAYOUT.HANDOFFS 红（命名口径的证伪）",
+    expect: "red",
+    mutate: (dir) => {
+      // 这条同时是对 AGENTS.md「交接单命名口径」那条声明的证伪：
+      // 若门只按"存在任一 HANDOFF"判定，改名后仍绿 —— 那说明命名口径只是文档里的说法。
+      const candidates = readdirSync(join(dir, "plan")).filter((f) => /^HANDOFF-M\d+\.md$/.test(f)).sort();
+      if (candidates.length === 0) throw new Error("没有任何交接单可作靶子");
+      const first = candidates[0];
+      const k = Number(/^HANDOFF-M(\d+)\.md$/.exec(first)[1]);
+      const target = `HANDOFF-M${k + 1}.md`; // 改成"下一棒"的编号
+      renameSync(join(dir, "plan", first), join(dir, "plan", target));
     },
   },
   // ── 夹具卫生判据的变异（目标门是 check-vectors，用组内 `gate` 指定） ─────────────

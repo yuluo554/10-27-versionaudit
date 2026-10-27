@@ -1,6 +1,21 @@
-# HANDOFF-M0 → M1（数据先行）
+# HANDOFF-M0（M0 收尾交接单）→ 下一棒 M1
 
-> 本文件是 **M0 收尾**的交接单。下一棒（M1）开工前：先跑 `node tools/check-sprint-layout.mjs`
+> **命名口径（本项目已定夺，勿改）**：文件名取 **`M<已完成的里程碑>`**，不是"下一棒"。
+>
+> 依据：`ai-tool-project-sprint` 内部有两套互相矛盾的写法——
+> `SKILL.md:14` / `references/planning-and-data.md:15` 写 `HANDOFF-M<next>`（下一棒），
+> 而 `SKILL.md:85` / `references/methodology-binding.md:89` 与**模板实现**
+> `references/templates/check-sprint-layout.mjs:200` 写 `HANDOFF-M<k>`（同号）。
+> **判定 = 哪一套被实现成了可跑判据**：模板里是
+> `for (const k of done) read(\`plan/HANDOFF-M${k}.md\`)`，其中 `done` 是**已 ✅ 的里程碑**。
+> 故 M0 的交接单必须叫 `HANDOFF-M0.md`；改名成 `HANDOFF-M1.md` 会让
+> `LAYOUT.HANDOFFS` 当场报 `plan/HANDOFF-M0.md(缺)`（本项目已实测）。
+>
+> **语义**：本文件是 **M0 的收尾记录**（承载 M0 已达成的事实、K 口径、环境坑），
+> 其中「三、下一棒待办」是给 M1 的行动清单。**"收尾记录"与"下棒待办"写在同一份文件里**
+> 是这套方法论的设计（交接单 = 收尾 + 交接），不是笔误。
+>
+> 下一棒（M1）开工前：先跑 `node tools/check-sprint-layout.mjs`
 > 与 `node tools/check-desensitized.mjs`，两条门必须绿。
 
 ## 一、当前进度（含证据）

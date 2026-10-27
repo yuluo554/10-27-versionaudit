@@ -25,7 +25,21 @@ node tools/check-workflows.mjs         # workflow 门（推送前抓 jobs=0 形�
 | --- | --- | --- |
 | 计划套件 | `plan/00–06` + `data/README.md` | 存在且各含必需小节（标题关键词） |
 | 数据台账 | `data/README.md` | 依据查证记录 + 数值口径（唯一定义处）在位 |
-| 交接单 | `plan/HANDOFF-M<k>.md` | 每个 ✅ 里程碑一份，七节齐（含"当前事实·状态不变量"）；M0 的收尾记录 = 计划套件本身（已声明豁免） |
+| 交接单 | `plan/HANDOFF-M<k>.md` | 每个 ✅ 里程碑一份，七节齐（含"当前事实·状态不变量"）；M0 已有 `HANDOFF-M0.md`。**命名取 `M<已完成的里程碑>`，不是"下一棒"**——见下条 |
+
+### 交接单命名口径（本项目已定夺，勿改）
+
+`ai-tool-project-sprint` 内部有两套矛盾写法：`HANDOFF-M<next>`（下一棒）与 `HANDOFF-M<k>`（同号）。
+**本项目取"同号"**，依据是只有它被实现成了可跑判据——模板
+`references/templates/check-sprint-layout.mjs:200`：
+
+```js
+for (const k of done) {          // done = 已 ✅ 的里程碑
+  const rel = `plan/HANDOFF-M${k}.md`;
+```
+
+实测：把 `HANDOFF-M0.md` 改名成 `HANDOFF-M1.md` → `LAYOUT.HANDOFFS plan/HANDOFF-M0.md(缺)` 报红。
+所以 **M0 收尾写 `HANDOFF-M0.md`，M1 收尾写 `HANDOFF-M1.md`**（后者同时承载 M2 的待办）。
 | 里程碑状态副本 | `plan/00` 里程碑表 + `plan/00` 承诺-证据台账 + `plan/05` 状态表 + `README` 状态表 | **逐处一致**；只认表格行（`\| M<k> \| …`），散文状态行不参与判定 |
 | 骨架产物 | `bin/versionaudit.mjs`、`src/`、`package.json` | 存在；CLI 可 `--help` / `--version` |
 | 发布留档 | `plan/RELEASE-M6.md`（两栏）或 `plan/WRAPUP-M6.md` | M6 未 ✅ 时本项报 PASS 并写明"尚不适用" |
