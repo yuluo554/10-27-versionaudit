@@ -34,7 +34,8 @@ node tools/check-workflows.mjs         # workflow 门（推送前抓 jobs=0 形�
 ## 布局门的变异验证
 
 门本身也要被证伪：`node tools/verify-layout-mutations.mjs` 逐组改坏仓库副本再复跑，
-**任何一组不变红 = 门有假判据**。收尾棒必须全组通过（含阴性对照）。
+**任何一组不变红 = 门有假判据**。收尾棒必须全组通过（含阴性对照）。当前 **18 组**
+（13 组布局门 + 5 组向量门/夹具卫生门），全部在临时副本里跑，不碰工作区。
 
 ## 环境事实与禁忌（只写实测过的）
 
@@ -44,5 +45,10 @@ node tools/check-workflows.mjs         # workflow 门（推送前抓 jobs=0 形�
   验收用 `node tools/offline-smoke.mjs`（进程内 DNS/net 钩子全部抛错）+ CI 的 `--network none` 容器。
 - 输出确定性：同输入两次运行逐字节一致（`tests/determinism`）；JSON 键序固定、数组稳定排序、
   不含时间戳/主机名/绝对路径（除 `--verbose-paths`）。
+- **夹具（`fixtures/*/input/`）是只读审计输入，不是依赖表**：全部 `private: true`、
+  无 `install`/`postinstall` 钩子、根 `package.json` 无 `workspaces` 收编它们。
+  这三条由 `tools/check-vectors.mjs` 的「夹具卫生」判据断言（3 组变异 V1–V3 证伪）。
+  **不要"为了安全"把 R2 向量里的 `*` / `latest` 改成固定版本** ——那是该规则的被测对象本身，
+  固定掉等于删掉唯一正例；风险处置落在"它不会被安装"，不是"它不能写浮动版本"。
 - 禁止：把"未执行"写成已完成；在 tag 之后改交付面（`bin/`、`src/`、`package.json`）；
   跨生态复用 npm 范围语义（Cargo `1.2.3` 是 caret，npm 是精确锁定）。

@@ -82,8 +82,22 @@ v1 特有的语义差异（只有嵌套 `dependencies`、无 `packages`、`dev`/
 | `resolved` 字段只作字符串留档 | 不校验 URL、不解析主机、不检查 integrity | 设计如此（零联网红线 + 安全向工具已覆盖） |
 | 报告不含时间戳 | 无法从报告本身判断"何时跑的" | 设计如此（确定性要求）；需要时由 CI 记录 |
 
-## 六、确定性承诺的边界
+### 5.1 测试夹具里的浮动版本是**被测对象**，不是依赖风险
 
+`fixtures/vectors/R2-wildcard-latest/input/package.json` 里写着 `"wild": "*"` 与
+`"tagged": "latest"`。安全扫描器会把这两行报成"浮动版本可能引入未审核代码"——**这是误报**，
+依据三条：
+
+1. **它们是被审计的输入样本**，不是任何项目的依赖表。R2 规则的全部意义就是检出
+   `*` / `latest` 这类声明；改成固定版本等于删掉该规则的唯一正例，向量失效。
+2. **它们不会被安装**。仓库根 `package.json` 没有 `workspaces`，`npm install` 只处理根目录，
+   从不进入 `fixtures/`；12 份夹具全部 `private: true`，且无 `install`/`postinstall` 钩子。
+3. **这两条不是建议**，而是 `tools/check-vectors.mjs` 的「夹具卫生」判据，配 3 组变异
+   （去掉 `private` / 加 `postinstall` / 把 `fixtures` 收进 `workspaces`）——任一发生即变红。
+
+风险的正确处置是**保证夹具不参与安装**，而不是**删掉被审计的样本**。
+
+## 六、确定性承诺的边界
 - 同一输入、同一 `semver` 版本、同一 Node 主版本 → 逐字节相同（`tests/determinism` 断言）。
 - **换 `semver` 版本可能改变结论**（预发布默认语义在别的生态已经变过——`data/README.md`
   ¶P8 记录了 packaging 26.0 的变更）。因此 `semver` 在 `package.json` 里**钉死不写 `^`**，

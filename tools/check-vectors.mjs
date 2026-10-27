@@ -87,6 +87,56 @@ for (const name of REQUIRED_VECTORS) {
   verified += 1;
 }
 
+// 夹具卫生（安全扫描的正面处置）：fixtures 下的 input/package.json 是**只读审计输入**，
+// 不是任何项目的依赖表。因此必须满足三条，否则"不会被安装"只是口头承诺：
+//   1. 每份夹具 private: true（npm 拒绝发布，且语义上明确"非发布物"）；
+//   2. 夹具不得含 install / preinstall / postinstall 生命周期脚本；
+//   3. 仓库根 package.json 不得用 workspaces 把 fixtures 收进工作区
+//      （收进去就会让 npm install 真的去解析这些浮动版本）。
+//
+// 注意：**浮动版本（* / latest）是 R2 向量的被测对象本身**，不能"固定掉"——
+// 固定版本等于删掉该规则的唯一正例。判据要落在"它不会被安装"，而不是"它不能写浮动版本"。
+function checkFixtureHygiene() {
+  const problems = [];
+  let checked = 0;
+
+  const rootPkgText = read("package.json");
+  if (rootPkgText) {
+    let rootPkg = {};
+    try {
+      rootPkg = JSON.parse(rootPkgText);
+    } catch {
+      problems.push("根 package.json 不是合法 JSON");
+    }
+    const ws = rootPkg.workspaces;
+    const wsGlobs = Array.isArray(ws) ? ws : Array.isArray(ws?.packages) ? ws.packages : [];
+    if (wsGlobs.some((g) => String(g).includes("fixtures"))) {
+      problems.push("根 package.json 的 workspaces 收编了 fixtures/**（会让夹具被真安装）");
+    }
+  }
+
+  for (const name of REQUIRED_VECTORS) {
+    const rel = `fixtures/vectors/${name}/input/package.json`;
+    const text = read(rel);
+    if (text === null) continue;
+    checked += 1;
+    let pkg;
+    try {
+      pkg = JSON.parse(text);
+    } catch {
+      problems.push(`${rel}: 不是合法 JSON`);
+      continue;
+    }
+    if (pkg.private !== true) problems.push(`${rel}: 缺 private: true（夹具不该是可发布包）`);
+    for (const hook of ["install", "preinstall", "postinstall", "prepublish"]) {
+      if (pkg.scripts && pkg.scripts[hook]) problems.push(`${rel}: 含 ${hook} 生命周期脚本`);
+    }
+  }
+
+  if (checked === 0) problems.push("夹具卫生：0 份夹具被检查（判据空跑）");
+  return { problems, checked };
+}
+
 // 端到端：把有 input 的向量真跑一次，断言退出码与 expected 一致
 let e2eRun = 0;
 for (const name of REQUIRED_VECTORS) {
@@ -121,6 +171,16 @@ for (const name of REQUIRED_VECTORS) {
 process.stdout.write("向量门（12 组差分向量）\n");
 process.stdout.write(`${"=".repeat(64)}\n`);
 process.stdout.write(`声明向量 ${REQUIRED_VECTORS.length} 组 / 实际目录 ${present.length} 组\n`);
+
+// 夹具卫生：浮动版本是 R2 的被测对象，判据落在"不会被安装"
+const hygiene = checkFixtureHygiene();
+for (const p of hygiene.problems) problems.push(`[hygiene] ${p}`);
+if (hygiene.problems.length === 0) {
+  process.stdout.write(
+    `PASS  夹具卫生：${hygiene.checked} 份 private:true / 无 install 钩子 / 根 workspaces 未收编 fixtures\n`,
+  );
+}
+
 if (missing.length) process.stdout.write(`FAIL  缺: ${missing.join(", ")}\n`);
 if (extra.length) process.stdout.write(`FAIL  多（未声明）: ${extra.join(", ")}\n`);
 for (const p of problems) process.stdout.write(`FAIL  ${p}\n`);

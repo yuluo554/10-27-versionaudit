@@ -49,8 +49,8 @@ function copyRepo() {
   return dest;
 }
 
-function runGate(dir) {
-  const gate = join(dir, "tools", "check-sprint-layout.mjs");
+function runGate(dir, gateRel = "tools/check-sprint-layout.mjs") {
+  const gate = join(dir, gateRel);
   if (!existsSync(gate)) return { code: 2, out: "门文件不存在" };
   try {
     const out = execFileSync(process.execPath, [gate], { encoding: "utf8", timeout: 60000 });
@@ -295,6 +295,68 @@ const GROUPS = [
       });
     },
   },
+  // ── 夹具卫生判据的变异（目标门是 check-vectors，用组内 `gate` 指定） ─────────────
+  // 这几组证明"夹具卫生"这条不是装饰：去掉 private / 加 install 钩子 / 把 fixtures 收进
+  // workspaces，三种都会让夹具真的被安装 —— 必须变红。
+  {
+    id: "V1-fixture-not-private",
+    gate: "tools/check-vectors.mjs",
+    desc: "把 R2 夹具的 private 去掉 → 夹具卫生红",
+    expect: "red",
+    mutate: (dir) => {
+      edit(dir, "fixtures/vectors/R2-wildcard-latest/input/package.json", (t) => {
+        const next = t.replace(/\s*"private":\s*true,?/, "");
+        if (next === t) throw new Error("夹具里没有 private: true（已红？）");
+        return next;
+      });
+    },
+  },
+  {
+    id: "V2-fixture-install-hook",
+    gate: "tools/check-vectors.mjs",
+    desc: "给夹具加 postinstall 脚本 → 夹具卫生红",
+    expect: "red",
+    mutate: (dir) => {
+      edit(dir, "fixtures/vectors/R1-no-upper-bound/input/package.json", (t) => {
+        const parsed = JSON.parse(t);
+        parsed.scripts = { postinstall: "node -e \"process.exit(0)\"" };
+        return `${JSON.stringify(parsed, null, 2)}\n`;
+      });
+    },
+  },
+  {
+    id: "V3-fixtures-in-workspaces",
+    gate: "tools/check-vectors.mjs",
+    desc: "根 package.json 的 workspaces 收编 fixtures → 夹具卫生红",
+    expect: "red",
+    mutate: (dir) => {
+      edit(dir, "package.json", (t) => {
+        const parsed = JSON.parse(t);
+        parsed.workspaces = ["fixtures/vectors/*"];
+        return `${JSON.stringify(parsed, null, 2)}\n`;
+      });
+    },
+  },
+  {
+    id: "V4-vector-expected-missing",
+    gate: "tools/check-vectors.mjs",
+    desc: "删掉一个向量的 expected.json → 向量门红",
+    expect: "red",
+    mutate: (dir) => remove(dir, "fixtures/vectors/R7-build-metadata/expected.json"),
+  },
+  {
+    id: "V5-vector-exit-mismatch",
+    gate: "tools/check-vectors.mjs",
+    desc: "把某向量的 exitCode 改错 → 向量门红（端到端断言真在跑）",
+    expect: "red",
+    mutate: (dir) => {
+      edit(dir, "fixtures/vectors/R5-empty-intersection/expected.json", (t) => {
+        const parsed = JSON.parse(t);
+        parsed.exitCode = 0; // 实际是 1
+        return `${JSON.stringify(parsed, null, 2)}\n`;
+      });
+    },
+  },
 ];
 
 const results = [];
@@ -307,7 +369,7 @@ for (const group of GROUPS) {
   const dir = copyRepo();
   try {
     group.mutate(dir);
-    const { code, out } = runGate(dir);
+    const { code, out } = runGate(dir, group.gate);
     let actual;
     if (group.expect === "red") actual = code !== 0 ? "red" : "green";
     else actual = code === 0 ? "green" : "red";
