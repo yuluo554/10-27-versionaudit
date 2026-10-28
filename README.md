@@ -20,20 +20,21 @@
 | M5 | `conflict-explain` + `report-ci` | ✅ `minimalSet` 属性测试（含 `--max-requesters` 超限降级路径）；退出码 0/1/2/3/4 全覆盖；SARIF 过**官方 schema 离线副本**（A26）+ 三格式产物集合一致 + `--out` 原子写；走查中修掉报告层四个实测缺陷（A26 / §5.0.5） |
 | M6 | 发布 | ⬜ |
 
-版本 `0.1.0`（M0 骨架）。能力面随里程碑推进，见 `plan/05-里程碑与发布.md`。
+版本 `1.0.0`。五个模块（`range-lint` / `lock-manifest` / `dedupe` / `conflict` / `audit`）全部可用，
+能力面与判据见 [`plan/05-里程碑与发布.md`](./plan/05-里程碑与发布.md)。
 
-## 用法（骨架期）
+## 用法
 
 ```bash
 npm install            # 仅安装一个钉死版本的 semver（7.8.5）
 npx versionaudit --help
 npx versionaudit --version
 npx versionaudit doctor .            # 输入可读性诊断（不联网）
-npx versionaudit range-lint <dir>    # M2 起
-npx versionaudit lock-manifest <dir> # M3 起
-npx versionaudit dedupe <dir>        # M4 起
-npx versionaudit conflict <dir>      # M5 起
-npx versionaudit audit <dir>         # 一次跑完，M5 起
+npx versionaudit range-lint <dir>    # 范围语义风险 R1–R8
+npx versionaudit lock-manifest <dir> # 锁与 manifest 双向不一致（带请求者路径）
+npx versionaudit dedupe <dir>        # 重复版本收敛可行性三态 + 最小冲突集
+npx versionaudit conflict <dir>      # 冲突解释
+npx versionaudit audit <dir>         # 一次跑完
 ```
 
 ### 灰区开关（默认档是**策略**，不是事实）
@@ -105,6 +106,23 @@ node tools/check-report-schema.mjs   # 报告门：schema / 三格式一致 / --
 已知边界：schema 里的 `format`（`uri-reference`/`date-time`）按 draft-07 annotation 语义
 **未校验**，由校验器显式登记（见 [`docs/limitations.md`](./docs/limitations.md) §3.2）。
 
+## 下载即用
+
+Release 页的附件是 **`versionaudit-v1.0.0.tar.gz`**（`git archive` 打出的 tag 树源码包，不含构建产物）
+与 **`SHA256SUMS`**。无需构建：解包后 `npm install`（只装钉死的 `semver@7.8.5`）即可运行。
+
+```bash
+# 1) 下载两个附件后，先验哈希（名字要与 SHA256SUMS 里的一致）
+sha256sum -c SHA256SUMS        # Windows: certutil -hashfile versionaudit-v1.0.0.tar.gz SHA256
+# 2) 解包即用
+tar -xzf versionaudit-v1.0.0.tar.gz && cd versionaudit
+npm install && npx versionaudit audit fixtures/real-tree/input
+```
+
+附件与 tag 逐字节同源（CI 用 `git archive "${GITHUB_REF_NAME}"` 生成，不从工作树打包）。
+注意：**不要拿 GitHub 自动生成的 "Source code (zip/tar.gz)" 当校验对象** —— 它的字节由 GitHub
+重新打包产生，与 `SHA256SUMS` 无对应关系。
+
 ## 文档
 
 | 文件 | 内容 |
@@ -116,6 +134,7 @@ node tools/check-report-schema.mjs   # 报告门：schema / 三格式一致 / --
 | [`plan/04-数据计划.md`](./plan/04-数据计划.md) | 向量集、真值纪律、冻结与再生成 |
 | [`plan/05-里程碑与发布.md`](./plan/05-里程碑与发布.md) | DoD、每周可演示、已知未验证项 |
 | [`plan/06-交付对标与决策.md`](./plan/06-交付对标与决策.md) | 评分对标、交付材料、决策记录、风险登记 |
+| [`plan/RELEASE-M6.md`](./plan/RELEASE-M6.md) | 发布留档（tag 前事实 / tag 后追加 / 覆盖对账） |
 | [`data/README.md`](./data/README.md) | 事实台账（semver 实测、跨生态同形异义、内置命令盲区、数值口径唯一定义处） |
 | [`docs/method.md`](./docs/method.md) | 区间代数与 MUS 的算法说明与可校验性论证 |
 | [`docs/limitations.md`](./docs/limitations.md) | 灰区、未实测项、边界与非目标 |

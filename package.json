@@ -1,6 +1,6 @@
 {
   "name": "versionaudit",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Offline npm version-constraint auditor: range semantics, lock/manifest divergence with requester paths, and dedupe feasibility proofs.",
   "keywords": ["semver", "lockfile", "npm", "audit", "dependency", "cli", "offline"],
   "type": "module",
