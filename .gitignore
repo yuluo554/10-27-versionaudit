@@ -55,3 +55,8 @@ desktop.ini
 logs/
 *.log
 .mimosa/
+
+# 二次迭代交接物（诊断/路线/执行记录）。与 tools/check-desensitized.mjs 的 SKIP_DIRS
+# 里的 "update" **成对**：只 ignore 不 skip 会让脱敏门继续扫它，只 skip 不 ignore 会让
+# 交接物随提交进公共仓。两处必须同时改（DEC4=甲）。
+update/

@@ -105,3 +105,18 @@ node --test tests/rules/range-diff.test.mjs
    不能用来背书"合法重复版本"这一条）；
 3. 按 §三 改包名、删 `resolved`/`integrity`/`license`/`engines`（**不动**版本号与范围字符串）；
 4. 重跑 §四 的四条命令，同步 `expected.json` 与 `data/README.md` §1.1 的实测行。
+
+## 六、何时必须重新生成（本树的保质期）
+
+"拓扑冻结"冻结的是**这份树本身**，不是"这棵树永远等于 npm 的输出"。下列任一发生时，
+背书失效、必须按 §五 重新导出并重新登记：
+
+| 触发条件 | 为什么 |
+|---|---|
+| `npm` 主版本变更（本树由 **11.12.1** 写出） | hoisting 是 npm 的**内部策略**：同名包两版本的落位（顶层 vs 嵌套）随版本变。落位一变，`requesters` 路径与最小冲突集就变 |
+| `debug` / `send` / `ms` / `bytes` 任一包重发版本 | 直接依赖的锁定版本可能被重新解析（`debug@2.6.9` 钉 `ms@2.0.0`、`send@0.18.0` 钉 `ms@2.1.3` 是这棵树存在的唯一理由） |
+| `fixtures/real-tree/expected.json` 的断言被改动 | 断言即背书；改断言而不重导出 = 让树去迎合结论 |
+
+**机读锚**：`review_interval=annual` / `next_review=2027-10-28`（与 `data/README.md` §0 的锚一致）。
+`tools/check-provenance.mjs` 的 `PROV.REVIEW` 判据会在过期后 FAIL，不会静默放行。
+**边界**：本锚只登记"该复核了"，不判断"复核结论是否仍成立"——后者必须由人按 §五 实跑。

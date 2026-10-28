@@ -4,16 +4,36 @@
  *
  * 这样 `node --test` 可以 import 同一套实现而不用 spawn 子进程，
  * 且发布包里的 `bin/` 只有这一层壳（`plan/02` §二）。
+ *
+ * 唯一的例外是**运行时下限检查**：它必须在 `parseArgs` 与任何业务模块加载**之前**跑，
+ * 否则旧 Node 上先炸的是 `ERR_UNKNOWN_FILE_EXTENSION` / `ERR_MODULE_NOT_FOUND` 之类的
+ * 间接错误，用户看不到"需要 Node >= 20"。故 `src/policy/node-floor.mjs` 不 import
+ * 任何模块（连 `semver` 都不 import）。
  */
 
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { checkNodeFloor, MIN_NODE_MAJOR } from "../src/policy/node-floor.mjs";
 import { parseArgs } from "../src/cli/args.mjs";
 import { run } from "../src/cli/main.mjs";
 import { EXIT } from "../src/cli/exit.mjs";
 import { UsageError } from "../src/errors.mjs";
 
+/** 下限不满足时的**唯一**停出口：一行 stderr + 环境档退出码（`EXIT.ENVIRONMENT`）。 */
+function enforceNodeFloor(currentVersion) {
+  const floor = checkNodeFloor(currentVersion, MIN_NODE_MAJOR);
+  if (floor.ok) return null;
+  process.stderr.write(`versionaudit: requires Node >= ${MIN_NODE_MAJOR} (running ${currentVersion})\n`);
+  process.stderr.write(`  ${floor.reason}\n`);
+  return EXIT.ENVIRONMENT;
+}
+
 async function main(argv) {
+  const environmentCode = enforceNodeFloor(process.versions.node);
+  if (environmentCode !== null) {
+    process.exitCode = environmentCode;
+    return;
+  }
   try {
     const parsed = await parseArgs(argv);
     const code = await run(parsed, {

@@ -21,6 +21,7 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { cleanupFixtures } from "../helpers/fixtures.mjs";
 import { evaluateExpected } from "../helpers/assertions.mjs";
+import { satisfies } from "../../src/semver/adapter.mjs";
 import { REPO_ROOT } from "../../src/meta.mjs";
 
 after(cleanupFixtures);
@@ -84,6 +85,18 @@ for (const unit of CASES) {
         report.implementation.version,
         expected.implementationVersions.semver,
         `${unit.label}: semver 版本漂移（向量需要重跑或台账需要更新）`,
+      );
+    }
+
+    // 向量声明的 **Node 范围**必须覆盖当前解释器（D2 修复：此前 `?.node` 从未被读，
+    // 15 份 expected.json 写 `">=20"` 只是装饰）。判据用本仓自己的 semver（K5 = 唯一适配层），
+    // 与报告侧同一套范围语义，不引入第二种解析口径。
+    if (expected.implementationVersions?.node) {
+      const declaredRange = expected.implementationVersions.node;
+      const actual = process.versions.node;
+      assert.ok(
+        satisfies(actual, declaredRange),
+        `${unit.label}: 该向量声明了 node ${declaredRange}，当前 ${actual}（向量需要重跑或声明需要更新）`,
       );
     }
 

@@ -60,8 +60,9 @@ npx versionaudit audit <dir>         # 一次跑完
 | 2 | 仅 `warning` 且 `--fail-on=warning` |
 | 3 | 输入不可解析（JSON 语法、缺字段、`lockfileVersion` 不支持、v1/v2/v3 结构混用） |
 | 4 | 内部不一致：工具结论与 `semver` 库差分不一致（"不编造语义"的自证出口） |
+| 5 | 运行环境不满足：Node 主版本低于 `engines.node` 的下限（入口在任何审计开始前以它退出） |
 
-优先级 `3 > 4 > 1 > 2 > 0`。完整口径（三态定义、MUS、灰区默认值）只在
+优先级 `5 > 3 > 4 > 1 > 2 > 0`（5 只在审计尚未开始时出现，故不受 `--fail-on` 影响）。完整口径（三态定义、MUS、灰区默认值）只在
 [`data/README.md`](./data/README.md) §7 定义一次。
 
 ## 规则表（M2 起生效）
@@ -145,9 +146,9 @@ npm install && npx versionaudit audit fixtures/real-tree/input
 node tools/check-sprint-layout.mjs   # 布局门（方法论装订）
 node tools/check-desensitized.mjs    # 脱敏门
 node tools/check-report-schema.mjs   # 报告门（SARIF schema / 三格式一致 / --out 原子写）
-npm test                             # node:test 全量（196 条；走 tools/run-tests.mjs）
+npm test                             # node:test 全量（201 条；走 tools/run-tests.mjs）
 npm run gate:all                     # 全部门 + 测试 + 离线冒烟
-node tools/verify-layout-mutations.mjs   # 门的自证（53 组变异，每组都必须变红）
+node tools/verify-layout-mutations.mjs   # 门的自证（54 组变异：应红 52 / 阴性对照 1 / 跳过 1）
 ```
 
 > `npm test` 走 `tools/run-tests.mjs` 而不是 `node --test "<glob>"`：**glob 形态是 Node 21 才加的**，

@@ -295,6 +295,7 @@ export function helpText() {
   --help / --version
 
 退出码：0 无问题 / 1 error / 2 仅 warning 且 --fail-on=warning / 3 输入不可解析 / 4 内部不一致
+        / 5 运行环境不满足（Node 主版本 < engines.node 下限，入口在解析参数前即退出）
 口径定义：data/README.md §7（唯一真相源）
 `;
 }

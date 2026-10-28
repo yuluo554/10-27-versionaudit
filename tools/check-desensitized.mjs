@@ -38,6 +38,9 @@ const SKIP_DIRS = new Set([
   "_scratch",
   ".pytest_cache",
   ".mimosa",
+  // 二次迭代交接物（`.gitignore` 同步 ignore 它）。两处**成对**：只 ignore 不 skip 会让门
+  // 继续扫交接物里的实测路径；只 skip 不 ignore 会让交接物随提交进公共仓（DEC4=甲）。
+  "update",
 ]);
 const SKIP_SUFFIXES = [".egg-info", ".dist-info"];
 const SKIP_EXTS = new Set([

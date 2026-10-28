@@ -232,7 +232,69 @@ function checkAssertionCoverage() {
   );
 }
 
-for (const run of [checkSeverityKeys, checkVectorSources, checkNumbersSection, checkAssertionCoverage]) {
+// ── 5. 复核锚：台账与真实树都要有可机读的复核周期（D7）──────────────────────
+/**
+ * 为什么这条是**门**而不是散文：`data/README.md` ¶P8 记录的 packaging 26.0 语义变更
+ * 说明这些结论**有保质期**；`fixtures/real-tree/SOURCE.md` 的拓扑又依赖 npm 的 hoisting 策略。
+ * 只写"到期应复核"而没人读 = 又一处"声明了但没人读"（本轮修的 D1/D2 正是这个形态）。
+ *
+ * 判据（三条，缺一不可）：
+ *   1. 两处都要有 `review_interval=` 与 `next_review=YYYY-MM-DD`；
+ *   2. 周期只认 `annual|semiannual|quarterly|monthly`（写别的字样等于没写口径）；
+ *   3. `next_review` **不得早于今天**（过期即 FAIL，不静默放行）。
+ *
+ * 边界：本条**只**判断"该复核了没有"，不判断"复核结论是否仍成立"——后者要人按
+ * `SOURCE.md` §五 实跑。撰写 `/tmp` 之类环境差异不影响它（只读仓库内文件）。
+ */
+const REVIEW_INTERVALS = new Set(["annual", "semiannual", "quarterly", "monthly"]);
+
+function parseReviewAnchor(text, label, problems) {
+  const interval = /review_interval\s*=\s*([a-z]+)/.exec(text ?? "");
+  const next = /next_review\s*=\s*(\d{4}-\d{2}-\d{2})/.exec(text ?? "");
+  if (!interval) problems.push(`${label}: 缺 review_interval=（复核周期）`);
+  else if (!REVIEW_INTERVALS.has(interval[1])) {
+    problems.push(`${label}: review_interval=${interval[1]} 不在 ${[...REVIEW_INTERVALS].join("/")} 之内`);
+  }
+  if (!next) problems.push(`${label}: 缺 next_review=YYYY-MM-DD（下次复核日）`);
+  return next ? next[1] : null;
+}
+
+function checkReviewAnchors() {
+  const problems = [];
+  const ledger = read("data/README.md");
+  const source = read("fixtures/real-tree/SOURCE.md");
+
+  const ledgerNext = parseReviewAnchor(ledger, "data/README.md", problems);
+  const sourceNext = parseReviewAnchor(source, "fixtures/real-tree/SOURCE.md", problems);
+
+  // 两处的锚必须一致：一处改、一处忘，等于两个口径
+  if (ledgerNext !== null && sourceNext !== null && ledgerNext !== sourceNext) {
+    problems.push(`两处 next_review 不一致（data=${ledgerNext} vs real-tree=${sourceNext}）`);
+  }
+
+  // 过期判据：用 UTC 日期与 ISO 日期串直接比（`YYYY-MM-DD` 字典序 = 时间序）
+  const today = new Date().toISOString().slice(0, 10);
+  for (const [label, value] of [
+    ["data/README.md", ledgerNext],
+    ["fixtures/real-tree/SOURCE.md", sourceNext],
+  ]) {
+    if (value !== null && value < today) problems.push(`${label}: next_review=${value} 已过期（今天 ${today}），须复核并顺延`);
+  }
+
+  add(
+    "PROV.REVIEW",
+    problems.length === 0,
+    problems.length ? problems.join("；") : `台账与真实树均带复核锚（next_review=${ledgerNext}，今天 ${today} 未过期）`,
+  );
+}
+
+for (const run of [
+  checkSeverityKeys,
+  checkVectorSources,
+  checkNumbersSection,
+  checkAssertionCoverage,
+  checkReviewAnchors,
+]) {
   try {
     run();
   } catch (error) {

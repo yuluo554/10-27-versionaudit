@@ -968,6 +968,24 @@ const GROUPS = [
       });
     },
   },
+  // P7（D7 修复新增）：复核锚过期 → 溯源门必须报「已过期」。
+  // 判据几条、变异就几组：`PROV.REVIEW` 是新增判据，没这组它就是假门。
+  // **两处一起改**：只改一处会让「两处不一致」那条同时命中，过期分支就被掩盖了
+  // （那样这组证明不了"过期判据会咬"）。
+  {
+    id: "P7-review-anchor-expired",
+    gate: "tools/check-provenance.mjs",
+    desc: "把两处 next_review 都改到过去 → PROV.REVIEW 必须报「已过期」（不是靠不一致那条旁证）",
+    expect: "red",
+    mutate: (dir) => {
+      for (const rel of ["data/README.md", "fixtures/real-tree/SOURCE.md"]) {
+        edit(dir, rel, (t) => {
+          if (!/next_review=2027-10-28/.test(t)) throw new Error(`${rel} 的复核锚形态变了，P7 靶子没匹配上`);
+          return t.replace(/next_review=2027-10-28/g, "next_review=2020-01-01");
+        });
+      }
+    },
+  },
   // H27：`tools/run-tests.mjs` 的空跑守卫被拆掉 → 守门测试必须变红。
   // 背景（M6 首推实测缺陷）：`node --test "<glob>"` 在 Node 20 不存在（glob 是 21 才加的），
   // `node --test <目录>` 在 Node 22+ 已失效；且 runner 若在 `node --test` 内部被调用，
