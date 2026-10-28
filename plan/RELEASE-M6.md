@@ -94,20 +94,60 @@ glob 失败恒非 0，于是所有这类组都会平凡"变红"（假绿）**。
 
 ## 二、tag 后追加
 
-> **本节在 tag 树内是占位骨架**。字面值（tag 对象 OID / 指向的 commit / 附件 sha256 / run id /
-> 下载核对结果）由 tag 之后的一笔**纯文档提交**补入 —— 写进 tag 树会改变那棵树，
-> 也就改变附件字节与这些值本身（不动点问题）。
+> **本节在 tag 树内是占位骨架**（`v1.0.0` 那份 tarball 里就是"待登记"）。字面值在 **tag 之后的
+> 一笔纯文档提交**里补入 —— 写进 tag 树会改变那棵树，也就改变附件字节与这些值本身（不动点问题）。
+> 下表是 **tag 之后**的完整版；tag 树内那份与本文件的差异**本来就该存在**。
 
 | 项 | 值 | 取法（读者可自行复算） |
 |---|---|---|
 | tag 名 | `v1.0.0`（annotated） | 见 `§一 1.1` |
-| tag 对象 OID | 待登记 | `git rev-parse v1.0.0` |
-| tag 指向的 commit | 待登记 | `git rev-parse v1.0.0^{commit}` |
-| tag push 那条 run | 待登记 | `gh run list --branch v1.0.0`（tag push 与 branch push 是两个独立事件） |
-| 附件 `versionaudit-v1.0.0.tar.gz` | 待登记（sha256） | `sha256sum versionaudit-v1.0.0.tar.gz` |
-| `SHA256SUMS` 自身 | 待登记 | **只写包内哈希，不写包外**（`plan/05` §发布节奏 第 5 条） |
+| tag 对象 OID | `accc9ce611c4aac311f63344b8b1f24ce217abce` | `git rev-parse v1.0.0` |
+| tag 指向的 commit | `f202400d7da9adab3c245f3668c3bc9429de001d` | `git rev-parse v1.0.0^{commit}` |
+| tag push 那条 run | **40638198446**（`gates` / `test (20)` / `test (22)` / `test (24)` / `offline` / `release-artifacts` 六格全绿） | `gh run list --branch v1.0.0`（tag push 与 branch push 是两个独立事件） |
+| 附件 `versionaudit-v1.0.0.tar.gz` | **260284 字节**，sha256 `02f6061b51356aba965bec9b0513616d98232fe11eee4340fe02edf5aafded4b` | `sha256sum versionaudit-v1.0.0.tar.gz` |
+| `SHA256SUMS` 自身 | 93 字节，内容仅一行 `<sha256>  versionaudit-v1.0.0.tar.gz` | **只写包内哈希，不写包外**（`plan/05` §发布节奏 第 5 条） |
+| Release 状态 | 非 draft / 非 prerelease，附件 state = `uploaded` | `gh release view v1.0.0 --json isDraft,isPrerelease,assets` |
+| 仓库可见性 | 首推为 **private**，CI 绿 + Release 建好后切 **public** | `gh repo view --json visibility` |
 
-### 2.1 tag 之后只允许文档面提交（可核对）
+### 2.1 附件与 tag 逐字节同源的证明（不依赖任何写死的值）
+
+三条独立证据，最强的是第三条（它不依赖哈希、也不依赖任何登记值）：
+
+| 证明 | 方法 | 实测 |
+|---|---|---|
+| ① 校验和 | 真下载 → `sha256sum -c SHA256SUMS` | `versionaudit-v1.0.0.tar.gz: OK` |
+| ② 下载件 = CI 构建件 | 与 `gh run download 40638198446` 的字节 `cmp` | 一致 |
+| ③ 下载件 = 从 tag 重打 | `git archive --format=tar --prefix=versionaudit/ v1.0.0 \| gzip -9n` 后 `cmp` | **逐字节一致** |
+| ④ blob 级同源 | 解包树 vs `git ls-tree -r -z v1.0.0` 的 blob sha1（不是两个派生物互比） | **132 / 132 相等**；extra 0 / missing 0 / 内容不一致 0 |
+
+④ 用的是 `sha1("blob <len>\0" + content)` 与 tag 的 blob sha1 比 —— **一侧是真 blob**，
+不是"两棵被同一个 `core.autocrlf` 一起改写的树互比"（那样任何共同转换都会让比对失去区分力）。
+
+### 2.2 发布包本体实测（真下载件 + 仓库外 + 无 `.git`）
+
+| 项 | 实测 |
+|---|---|
+| `npm install --offline` | `added 1 package`（钉死的 `semver@7.8.5`） |
+| `--version` | `versionaudit 1.0.0` |
+| `npm test` | **196 通过 / 0 失败** |
+| 七门 | **7 / 7 全绿** |
+| `gen-examples --check` | 2 份冻结产物逐字节一致 |
+| `offline-smoke` | 12 入口 / 6 命令 / **网络尝试 0 次** |
+| README 命令逐条 | `--help` 0、`doctor` 0、`range-lint` 1、`lock-manifest` 1、`dedupe` 1、`conflict` 1、`audit` 1、`audit --format=sarif --out` 1 —— 全部符合 README 的退出码语义 |
+
+### 2.3 CI 对账（口径 = 每个 main 提交都有对应的绿 run + tag push 独立一条）
+
+| run | 事件 | 结果 | 说明 |
+|---|---|---|---|
+| 40635987184 | push / main | **failure** | 首推。`test (20)` 红：`Could not find '…tests/**/*.test.mjs'`（见 `§一 1.6`） |
+| 40637759120 | push / main | success | 修复后复推，五格全绿（`gates` + `test 20/22/24` + `offline`） |
+| 40638198446 | push / **v1.0.0** | success | tag run，六格全绿（含 `release-artifacts` 真跑了） |
+
+**不变量**（比绝对数字可审计）：main 上每个提交各产生一条 run；tag push 另产生一条独立 run
+（本轮 3 条 push → 3 条 run，其中 1 条是 tag）。此后每笔文档 push 各产生一条 run，
+可用 `gh run list` 逐条核对。
+
+### 2.4 tag 之后只允许文档面提交（可核对）
 
 ```
 git diff --name-only v1.0.0..HEAD | grep -vE '^(plan/|README\.md|AGENTS\.md)'   # 空 = 交付面与 tag 一致
@@ -116,27 +156,43 @@ git diff --name-only v1.0.0..HEAD | grep -vE '^(plan/|README\.md|AGENTS\.md)'   
 判据口诀：**发布后每落一笔提交，都要重证一次"代码面为空"**。tag 之后允许的提交只有
 `plan/`、`README.md`、`AGENTS.md` 三个面（发布留档补齐、DoD 回填、未验证项回填）。
 
+**本轮 tag 之后的提交面**（如实登记，含一处超出"纯文档"的改动）：
+
+| 面 | 文件 | 为什么必须在 tag 之后 |
+|---|---|---|
+| plan/ | `plan/05`（M6 翻 ✅ + 未验证项回填）、`plan/00`（M6 翻 ✅）、`plan/06`（关闭 CI 首推缺口）、`plan/RELEASE-M6.md`（本节）、`plan/HANDOFF-M6.md` | 这些事实**在 tag 之前不存在**（tag OID / run id / 附件 sha256 / "M6 已完成"这个状态本身） |
+| README.md | 状态表 M6 行翻 ✅ | 同上；README 状态行只写"版本 + 能力"，发布状态归 Release 页 |
+| AGENTS.md | 新增 K27（测试跑法）与 H27 条目 | 门的口径登记，随判据一起改 |
+| **tools/（2 个文件）** | `tools/check-sprint-layout.mjs`（`DOC_TOOLS` 正则加负向后顾）、`tools/verify-layout-mutations.mjs`（`L10` 靶子改随状态切换） | **如实登记**：这两处是**门判据**的缺陷，且**只在 M6 翻 ✅ 之后才暴露** —— ① `HANDOFF-M6.md` 里写 `tests/tools/run-tests.test.mjs` 让 `DOC_TOOLS` 误把测试文件当 tools 脚本；② `L10` 原本的构造是"把 M6 翻 ✅"，M6 已是 ✅ 后翻转是 no-op（被 no-op 守卫抓成 `error`，不是静默通过）。<br>**为什么仍算合规**：`bin/` / `src/` / `package.json` / `fixtures/` / `schema/` **一个字节未动**，CLI 行为与产物完全不变；且**tag 树用旧版门自跑全绿**（`git archive v1.0.0` 导出树里 `check-sprint-layout` 全绿 —— 因为 tag 树里 M6 是 ⬜、`HANDOFF-M6.md` 还不存在）。即：**发布物没有被这两处改动影响**，改的是"对未来的仓库状态的判据"。|
+| **未改** | `bin/` · `src/` · `package.json` · `fixtures/` · `tests/`（tag 之前的 `tests/tools/` 已在 tag 内） · `schema/` | — |
+
+**诚实边界**：严格的"tag 之后只允许 `plan/` + `README.md` + `AGENTS.md`"在本轮**被两处 `tools/` 判据修复打破**。
+不改口径去迁就（那是把违约写成合规），而是给三条可核对的限定：交付面未动、
+`git archive v1.0.0` 导出树里自跑七门全绿、`git diff v1.0.0..HEAD -- bin src package.json`
+为空。若要求绝对纯净，正解是**发补丁版 `v1.0.1`** 而不是重打 `v1.0.0`（重打会让已发附件与
+`SHA256SUMS` 一起作废）；本轮判断不值得为一个门判据的正则发新版本，故不加权处置。
+
 ## 三、覆盖对账（阶段 7 出口门逐条）
 
-> 三态：**已实现**（有可复跑的判据）/ **不适用 + 理由**（本项目形态不产生该风险）/
-> **待首推**（只能在远端成立，本机无法证明）。逐条给，不留空。
+> 三态：**已实现 / 已实测**（有可复跑的判据，或已在本轮真跑过）/ **不适用 + 理由**（本项目形态不产生该风险）/
+> ~~待首推~~（本轮 0 条 —— 所有原"待首推"项都已由首推与 tag run 证明）。逐条给，不留空。
 
 | # | 出口门条目 | 态 | 落点 / 理由 |
 |---|---|---|---|
-| 1 | 发布物本体复核（真下载 + 中立目录） | 待首推 | tag 后从 Release 真下载 → `sha256sum -c` → 解包树 vs `git archive v1.0.0` 共有文件逐字节比 |
+| 1 | 发布物本体复核（真下载 + 中立目录） | ✅ 已实现 | 见 §二 2.1 / §二 2.2：匿名通道真下载 → `sha256sum -c` OK → 解包树 vs tag 树**逐 blob sha1 一致 132/132** → 发布包 196 测试 + 七门全绿 |
 | 2 | 名字占用核对在建仓之前 | 已实现 | `§一 1.2`（三条实测 + 未占用结论） |
 | 3 | 入仓工具在无 `.git` 树里也要能跑 | 已实现 | `§一 1.4`：`git archive` 导出树（129 文件 / 无 `.git`）里七门 + 196 测试 + 53 变异全绿 |
-| 4 | 无网络 job 用嵌套 `docker run --network none` | 已实现（形态）| `.github/workflows/ci.yml` 的 `offline` job 是普通 runner + 嵌套 `docker run`，**不用** `container.options: --network none`（后者与 Actions 的 job 容器模型互斥）；实跑待首推。**本机无 docker**（`docker --version` → `command not found`），这一条**结构上无法在本机证明**，只有远端可证 |
+| 4 | 无网络 job 用嵌套 `docker run --network none` | ✅ 已实测 | `.github/workflows/ci.yml` 的 `offline` job 是普通 runner + 嵌套 `docker run`，**不用** `container.options: --network none`（后者与 Actions 的 job 容器模型互斥）。**本机无 docker**（`docker --version` → `command not found`），这条结构上只能远端证明 —— 证据是三条 run（40635987184 / 40637759120 / 40638198446）的 `offline` 格全绿 |
 | 5 | 首推配置面（`src` 布局 / 编码 / 零依赖断言） | 不适用 + 理由 | 本项目无 `src` 布局导入问题（`bin/` 直接 import 相对路径）、无 Python 控制台编码面、`semver` 是唯一运行时依赖且由 `package-lock.json` 钉死；Node 侧对应的"配置面"风险是 `npm install` 失败，已由 `offline` job 的构建期安装覆盖 |
 | 6 | 发布包实测 = README 每条命令在解包树里真敲 | 已实现 | `§一 1.4` 末行：8 条命令逐条实测，退出码与 README 语义逐条对上 |
 | 7 | 干净环境验证要连"真实输入"一起验 | 已适用 + 已实现 | 本项目的"真实输入"就是入仓夹具本身（`fixtures/real-tree/` 是 `npm install --offline` 真写出的 20 包锁），无外部下载件、无 `.gitignore` 封存的缓存目录 → "干净环境"与"仓库树"输入集合相同 |
 | 8 | 干净环境第一分支 = 无本地数据缓存 | 不适用 + 理由 | 审计输入全部入仓（`fixtures/` 49 份文件），无 `data/_downloads` 一类被 gitignore 的缓存；不存在"有缓存走 A、无缓存走 B"的分支 |
 | 9 | tag 树内留档 vs tag 自身事实（自指） | 已实现 | 本文件两栏结构本身即处置：`§二` 是占位骨架，字面值走 tag 后纯文档提交 |
-| 10 | 附件与 tag 树逐字节同源 | 已实现（判据）+ 待首推（实跑）| CI 用 `git archive "${GITHUB_REF_NAME}"` 生成附件（不从工作树打包）；复验：解包树 vs `git archive v1.0.0` 共有文件逐字节 + 两侧独有集合逐项点名。**不用 `diff -r` 零差异**（两棵树不同构：GitHub 包多一层容器目录） |
+| 10 | 附件与 tag 树逐字节同源 | ✅ 已实测 | CI 用 `git archive "${GITHUB_REF_NAME}"` 生成附件（不从工作树打包）；复验：解包树 vs `git archive v1.0.0` 共有文件逐字节 + 两侧独有集合逐项点名。**不用 `diff -r` 零差异**（两棵树不同构：GitHub 包多一层容器目录） |
 | 11 | 内容寻址随包数据的行尾归一 | 不适用 + 理由 | 本项目的冻结产物（`examples/`、`fixtures/**/expected.json`）靠**逐字节比对**守，不靠摘要；`.gitattributes` 已把 `* text=auto eol=lf` 与 `examples/*.json`/`expected.json`/`package-lock.json` 钉成 LF，Windows 检出不会把 CRLF 带进产物 |
 | 12 | 源码包要自足 | 已实现 | `§一 1.4`：导出树里 `npm install` + 七门 + 196 测试全绿；`files` 白名单不含 `fixtures/`（`plan/06` D10）但那是 **npm 包**口径，源码包是全树 |
 | 13 | 构建排在交付面定稿之后 | 已实现 | 顺序实测为：定版（版本三处 + 样例重生成）→ 提交 → 干净树预检 → 才打 tag。无构建步骤，`git archive` 直接取 tag 树 |
-| 14 | README 提到的附件名必须真在 Release 里 | 已实现（写法）+ 待首推（核对） | README「下载即用」写的名字 = `versionaudit-v1.0.0.tar.gz` / `SHA256SUMS`，与 CI 产出路径一致；tag 后按 `gh release view --json assets` 核对 |
+| 14 | README 提到的附件名必须真在 Release 里 | ✅ 已核对 | README「下载即用」写的名字 = `versionaudit-v1.0.0.tar.gz` / `SHA256SUMS`，与 CI 产出路径一致；tag 后按 `gh release view --json assets` 核对 |
 | 15 | 对外样例产物在中立目录生成 | 已实现 | 样例只含**仓库相对路径**（`fixtures/vectors/M2-lock-manifest/input`），`gen-examples` 自检第 ② 条断言无盘符绝对路径、第 ① 条断言无时间戳 |
 | 16 | 附件口径 = 手工源码包 | 已实现 | `§一 1.1`；README 已写"不要拿 GitHub 自动生成的 Source code 包当校验对象"及理由 |
 | 17 | 附件 sha256 的两个不动点 | 已实现 | 包内只写**复验方法**不写哈希；哈希进 `§二`（tag 后追加）与 Release 正文（连仓库树都不碰） |
@@ -147,10 +203,10 @@ git diff --name-only v1.0.0..HEAD | grep -vE '^(plan/|README\.md|AGENTS\.md)'   
 | 22 | 定版改变指纹字段 → 样例同轮重生成 | 已实现 | 版本号进 `examples` 的 `tool.version`；定版提交内已重生成并 `--check` 通过 |
 | 23 | `POST_TAG` 处置 = 声明 + 可核对 | 已实现 | `§二 2.1` 给出 `git diff --name-only v1.0.0..HEAD` 的口径与允许面 |
 | 24 | 发布门读 tag 树还是工作树 | 不适用 + 理由 | 本项目无独立发布门脚本（发布判据 = 七门 + 报告门 + 本对账表）；七门判据**只落仓库内文件**，不读 git 元数据 |
-| 25 | annotated tag 两端一致 | 待首推 | tag 只打一次、不移动；`git rev-parse v1.0.0` / `^{commit}` 记入 `§二` |
+| 25 | annotated tag 两端一致 | ✅ 已实测 | tag 只打一次、未移动；OID / commit 记入 §二 |
 | 26 | tag 之后只允许文档面提交 | 已实现 | `§二 2.1` 的可核对命令；本轮收尾提交面 = `plan/` + `README.md` + `AGENTS.md` |
-| 27 | push 数 = run 数对账 | 待首推 | 口径 = **每个 main 分支提交都有对应的绿 run** + tag push 独立一条 run；本轮实测值记入 `§二` |
-| 28 | 四矩阵同点全红 = CI 接线缺陷 | 待首推 | Node 20/22/24 三格；若同点全红先查接线不查逻辑 |
+| 27 | push 数 = run 数对账 | ✅ 已实测 | 本轮 3 条 push → 3 条 run（含 1 条 tag run），逐条见 §二 2.3；不变量写法见该节末 |
+| 28 | 四矩阵同点全红 = CI 接线缺陷 | ✅ 已实测（反例）| 首轮是**单格红**（只有 `test (20)`），正是"版本面"而非接线面 —— 单格红与全红是两种处置，别混 |
 | 30 | CI 内联脚本优先落 `tools/` 脚本 | 已实现（5 处内联，逐处说明）| `ci.yml` 共 5 处 `run: \|`：`offline` job 4 处（建离线镜像、跑 CLI、跑冒烟、DNS 反证）+ `release-artifacts` 1 处（`git archive` + `sha256sum`）——都是**编排动作**而非判据，判据本身全在 `tools/*.mjs`（heredoc 终止符与块同缩进，文件 LF） |
 | 31 | 每条已交付命令都有离线 CI 冒烟 | 已实现 | `tools/offline-smoke.mjs` 跑 6 条命令（`audit` × 3 格式 + `doctor` + `--help` + `--version`），CI 的 `test` job 与 `offline` job 各跑一次 |
 | 35 | 推送前本地解析 workflow 并断言 job/step 数 | 已实现 | `tools/check-workflows.mjs`（`LAYOUT`/CI 双跑）：顶层键齐 / 无裸冒号 / 每个 job 有 `runs-on` / 无容器网络互斥 |

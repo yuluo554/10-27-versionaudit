@@ -18,7 +18,7 @@
 | M3 | `lock-manifest-check`（v1/v2/v3） | ✅ 四类 kind 逐条与 `plan/03` 对齐；v1/v2/v3 各有夹具（向量集 12 → 14 组）；退出码 3 三形态端到端；用真实 npm 11.12.1 锁复验时修掉三个实测缺陷（A22–A24） |
 | M4 | `dedupe-feasibility`（三态 + MUS） | ✅ 20 包真实树（`fixtures/real-tree/`，`npm ls --all` 退出码 0）给出确定性结论＝不可收敛 + 最小冲突集；MUS 可机械校验（无解 + 移除任一元素后有解，逐夹具差分复算）；超限 `degraded` 仍是无解极小集；向量集 14 → 15 组 |
 | M5 | `conflict-explain` + `report-ci` | ✅ `minimalSet` 属性测试（含 `--max-requesters` 超限降级路径）；退出码 0/1/2/3/4 全覆盖；SARIF 过**官方 schema 离线副本**（A26）+ 三格式产物集合一致 + `--out` 原子写；走查中修掉报告层四个实测缺陷（A26 / §5.0.5） |
-| M6 | 发布 | ⬜ |
+| M6 | 发布 | ✅ tag `v1.0.0` + [GitHub Release](https://github.com/yuluo554/10-27-versionaudit/releases/tag/v1.0.0)（源码包 + `SHA256SUMS`）；首推实测修掉 Node 20 的 glob 缺陷（变异组 `H27`） |
 
 版本 `1.0.0`。五个模块（`range-lint` / `lock-manifest` / `dedupe` / `conflict` / `audit`）全部可用，
 能力面与判据见 [`plan/05-里程碑与发布.md`](./plan/05-里程碑与发布.md)。

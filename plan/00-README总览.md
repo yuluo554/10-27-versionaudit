@@ -103,7 +103,7 @@
 | M3 | 锁一致性（`lock-manifest-check` v1/v2/v3） | ✅ | 复现 `send` 场景并输出声明项/范围/锁中版本/请求者路径（`fixtures/vectors/M2-lock-manifest` 断言）；三种 lockfileVersion 各有夹具（v3 = M2 向量、v1/v2 = 新增 `M3-lockfile-v1`/`M3-lockfile-v2`，向量集 12 → 14 组）；退出码 3 三形态（结构混用 / 不支持版本 / JSON 语法错误）端到端覆盖于 `tests/exit-codes/lock-input.test.mjs`；**用真实 npm 11.12.1 写出的锁逐条复验四类 kind**，修掉三个实测缺陷（台账 A22–A24；变异组 `H9`–`H13`） |
 | M4 | 收敛可行性（`dedupe-feasibility` 三态 + MUS） | ✅ | 20 包真实树（`fixtures/real-tree/`：`npm install --offline` 真写出的锁、`npm ls --all` 退出码 0）给出确定性结论＝`NOT_CONVERGIBLE` + 最小冲突集（`tests/proof/real-tree.test.mjs`）；MUS 可机械校验（无解 + 移除任一元素后有解，逐夹具差分复算；`M3-ms-two-targets` 钉目标完整性）；超限显式 `degraded`（删除法保证仍是无解极小集）；修掉两个实测缺陷（差分 MUS 面真空 / 降级返回可满足集合；变异组 `H14`–`H22`、`P5`） |
 | M5 | 冲突解释与门禁（`conflict-explain` + `report-ci`） | ✅ | `minimalSet` 属性测试通过（含 `--max-requesters` 超限的降级路径：仍无解 + 极小）；退出码 0/1/2/3/4 全覆盖；**SARIF 过官方 schema 的离线副本**（`schema/sarif-2.1.0.json`，A26；`tools/check-report-schema.mjs` 真跑 16 个夹具）+ 三格式产物集合一致（期望值独立枚举）；零联网验收（`offline-smoke`）。走查中修掉报告层四个实测缺陷（`ruleId: "undefined"` / SARIF 丢 M3·M4 产物 / `summary.highest` 漏算 / text 降级打错字段；变异组 `H23`–`H26`、`P6`） |
-| M6 | 发布（GitHub 公开仓库） | ⬜ | **DoD = git tag + GitHub Release 附产物 + 发布留档三件套**；署名 `yuluo554` |
+| M6 | 发布（GitHub 公开仓库） | ✅ | **DoD = git tag + GitHub Release 附产物 + 发布留档三件套**；署名 `yuluo554`。tag `v1.0.0`（annotated）+ Release 两件附件（源码包 + `SHA256SUMS`）+ `plan/RELEASE-M6.md` 两栏与覆盖对账。**首推实测修掉 Node 20 的 `node --test "<glob>"` 缺陷**（glob 是 Node 21 才加的；改 `tools/run-tests.mjs`，变异组 `H27`）；附件与 tag 树逐 blob sha1 一致 132/132 |
 
 ## 仓库约定
 

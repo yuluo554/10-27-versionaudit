@@ -321,7 +321,12 @@ function checkDocumentedToolsExist(doneMilestones) {
   for (const rel of docs) {
     const text = read(rel);
     if (text === null) continue;
-    for (const m of text.matchAll(/tools\/[\w.-]+\.(?:mjs|js|cjs|py|sh|ps1)/g)) referenced.add(m[0]);
+    // **路径必须从"仓库根 / 行内代码 / 空白"起算**（负向后顾）。
+    // 不加这条会误报：HANDOFF-M6 里写 `tests/tools/run-tests.test.mjs`（一个真实存在的
+    // 测试文件）时，裸的 `tools/run-tests.test.mjs` 子串被当成了"文档点名的 tools 脚本"，
+    // 于是 `LAYOUT.DOC_TOOLS` 报它不存在 —— **被测对象是测试文件，判据却按 tools/ 脚本找**。
+    // 变异组 `L8` 仍钉住真缺失（AGENTS.md 里点名一个不存在的 tools 脚本必须红）。
+    for (const m of text.matchAll(/(?<![\w./-])tools\/[\w.-]+\.(?:mjs|js|cjs|py|sh|ps1)/g)) referenced.add(m[0]);
   }
   if (referenced.size === 0) {
     add("LAYOUT.DOC_TOOLS", false, `扫了 ${docs.length} 份文档，0 处 tools/ 引用——判据是空的（阳性对照失败）`);

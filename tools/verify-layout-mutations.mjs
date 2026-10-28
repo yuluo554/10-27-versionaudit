@@ -26,6 +26,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  */
 const SKIP = new Set([".git", ".mimosa", "dist", "build", "coverage"]);
 
+/** 发布里程碑号（与 `check-sprint-layout.mjs` 的 `RELEASE_MILESTONE` 一致）。
+ *  `L10` 的靶子是"已 ✅ 却删掉留档"，所以文件名要跟着这个常量走，别写死。 */
+const RELEASE_ID = 6;
+
 const onlyIdx = process.argv.indexOf("--only");
 const only = onlyIdx >= 0 ? process.argv[onlyIdx + 1] : null;
 for (let i = 2; i < process.argv.length; i += 1) {
@@ -269,23 +273,15 @@ const GROUPS = [
   },
   {
     id: "L10-release",
-    desc: "把发布里程碑翻 ✅ 但保留缺档（构造『已发布却无留档』） → LAYOUT.RELEASE 红",
+    desc: "发布里程碑已 ✅ 却删掉留档（构造『已发布却无留档』） → LAYOUT.RELEASE 红",
     expect: "red",
     mutate: (dir) => {
-      // 在 plan/00 的 M6 行把它翻成 ✅（唯一副本即可触发 RELEASE 判据）
-      edit(dir, "plan/00-README总览.md", (t) => {
-        const lines = t.split("\n");
-        const headerIdx = lines.findIndex((l) => l.startsWith("|") && l.includes("里程碑") && l.includes("状态"));
-        for (let i = headerIdx + 2; i < lines.length; i += 1) {
-          if (!lines[i].startsWith("|")) break;
-          if (!/^\|\s*\*{0,2}M6\b/.test(lines[i])) continue;
-          const before = lines[i];
-          lines[i] = before.replace(/[⬜🟡]/g, "✅");
-          if (lines[i] === before) throw new Error("M6 行没有未完成标记，翻转无变化");
-          return lines.join("\n");
-        }
-        throw new Error("plan/00 找不到 M6 行");
-      });
+      // **M6 ✅ 之后**，"把它翻 ✅" 已不是可构造的变异（本来就是 ✅，翻转是 no-op）。
+      // 现在的靶子改成**删掉留档文件**：M6 已 ✅ + 无 RELEASE/WRAPUP → LAYOUT.RELEASE 必须红。
+      // 对照：M6 未完成时该判据会报"尚不适用"并 PASS —— 两个分支各由一次状态翻转覆盖，
+      // 所以这条变异必须随里程碑状态同步改靶子（否则 no-op 守卫会把它抓成 error）。
+      remove(dir, `plan/RELEASE-M${RELEASE_ID}.md`);
+      if (existsSync(join(dir, `plan/WRAPUP-M${RELEASE_ID}.md`))) remove(dir, `plan/WRAPUP-M${RELEASE_ID}.md`);
     },
   },
   {
