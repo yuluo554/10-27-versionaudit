@@ -1,18 +1,79 @@
 {
   "rule": "R4",
-  "description": "预发布可达性必须区分「范围不可达」与「目标不在候选集」两态",
+  "description": "预发布可达性必须区分「范围不可达」与「目标不在候选集」两态；同族反例矩阵：带预发布下界（^/~）、精确预发布、正式版目标、正式版范围 —— 五种形态都不得报",
   "mustContain": [
-    { "path": "findings[?package=pre-unreachable].rule", "value": "R4" },
-    { "path": "findings[?package=pre-unreachable].evidence", "contains": "prerelease-unreachable" },
-    { "path": "findings[?package=pre-off-target].rule", "value": "R4" },
-    { "path": "findings[?package=pre-off-target].evidence", "contains": "target-not-in-candidate" }
+    {
+      "path": "findings[?package=pre-unreachable].rule",
+      "value": "R4"
+    },
+    {
+      "path": "findings[?package=pre-unreachable].evidence",
+      "contains": "prerelease-unreachable"
+    },
+    {
+      "path": "findings[?package=pre-off-target].rule",
+      "value": "R4"
+    },
+    {
+      "path": "findings[?package=pre-off-target].evidence",
+      "contains": "target-not-in-candidate"
+    },
+    {
+      "path": "findings[?package=pre-tilde-unreachable].rule",
+      "value": "R4"
+    },
+    {
+      "path": "findings[?package=pre-tilde-unreachable].evidence",
+      "contains": "prerelease-unreachable"
+    },
+    {
+      "path": "findings[?package=pre-lower-base-unreachable].rule",
+      "value": "R4"
+    },
+    {
+      "path": "findings[?package=pre-lower-base-unreachable].evidence",
+      "contains": "prerelease-unreachable"
+    },
+    {
+      "path": "input.declarations",
+      "value": 9
+    },
+    {
+      "path": "input.packages",
+      "value": 10
+    }
   ],
-  "mustNotContain": [{ "path": "findings[?package=pre-reachable].rule", "value": "R4" }],
+  "mustNotContain": [
+    {
+      "path": "findings[?package=pre-reachable].rule",
+      "value": "R4"
+    },
+    {
+      "path": "findings[?package=pre-tilde-reachable].rule",
+      "value": "R4"
+    },
+    {
+      "path": "findings[?package=pre-exact-reachable].rule",
+      "value": "R4"
+    },
+    {
+      "path": "findings[?package=pre-base-reachable].rule",
+      "value": "R4"
+    },
+    {
+      "path": "findings[?package=pre-plain-release].rule",
+      "value": "R4"
+    }
+  ],
   "exitCode": 1,
-  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "implementationVersions": {
+    "semver": "7.8.5",
+    "node": ">=20"
+  },
   "sources": [
-    "data/README.md §1.1 A8（^1.0.0 不匹配 1.0.0-beta）",
+    "data/README.md §1.1 A8（^1.0.0 不匹配 1.0.0-beta / 1.5.0-beta / * 也不匹配）",
     "data/README.md §1.1 A9（^1.2.3-beta 匹配 1.2.3-beta.2）",
-    "plan/01 §3.1 R4（必须区分两态）"
+    "plan/01 §3.1 R4（必须区分两态）",
+    "plan/03 M1 R4（两态用 reason 字段区分，否则「不可达」会把「根本没这个版本」说成「范围写错」）"
   ]
 }

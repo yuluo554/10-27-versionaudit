@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  # ── 布局门 / 脱敏门 / 范围门 / 溯源门：一条 job 四个 step（都不需要网络） ──────────
+  # ── 布局门 / 脱敏门 / 范围门 / 溯源门 / 报告门：一条 job（都不需要网络） ──────────────
   gates:
     runs-on: ubuntu-latest
     steps:
@@ -63,8 +63,11 @@ jobs:
       - name: Unit + vector tests
         run: npm test
 
-      - name: "Vector gate (12 differential vectors incl. end-to-end exit codes)"
+      - name: "Vector gate (15 differential vectors incl. end-to-end exit codes)"
         run: node tools/check-vectors.mjs
+
+      - name: "Report gate (SARIF vs OASIS schema, three-format consistency, --out atomicity)"
+        run: node tools/check-report-schema.mjs
 
       - name: "Frozen examples reproduce byte-for-byte"
         run: node tools/gen-examples.mjs --check

@@ -5,6 +5,13 @@
   "dependencies": {
     "empty-same": ">=1.0.0 <1.0.0",
     "empty-inverted": ">=2.0.0 <1.0.0",
-    "ok": ">=1.0.0 <2.0.0"
+    "ok": ">=1.0.0 <2.0.0",
+    "range-incl-single": ">=1.0.0 <=1.0.0",
+    "range-narrow": ">=1.0.0 <1.0.1",
+    "empty-exact-upper": "1.0.0 <1.0.0",
+    "empty-exact-lower": "1.0.0 >1.0.0",
+    "empty-exact-between": ">1.0.0 1.0.0",
+    "range-exact-plain": "1.0.0",
+    "range-closed-open-guard": ">=1.0.0-0 <=1.0.0-0"
   }
 }

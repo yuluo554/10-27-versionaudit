@@ -133,6 +133,7 @@ function runChecks(command, context, options, io) {
   const wantConflict = command === "conflict" || command === "audit";
 
   const findings = [];
+  const degradations = [];
   if (wantRange) {
     findings.push(
       ...runRangeLint(manifest, {
@@ -143,12 +144,12 @@ function runChecks(command, context, options, io) {
     );
   }
   if (wantLock) {
-    findings.push(
-      ...runLockManifestCheck(manifest, lock, graph, {
-        severityTable,
-        strict: options.strict === true,
-      }),
-    );
+    const lockResult = runLockManifestCheck(manifest, lock, graph, {
+      severityTable,
+      strict: options.strict === true,
+      onDegraded: (msg) => degradations.push(msg),
+    });
+    findings.push(...lockResult.findings);
   }
 
   const sorted = mergeFindings(findings, wantRange);
@@ -165,6 +166,7 @@ function runChecks(command, context, options, io) {
 
   const summary = summarize(sorted, dedupe, conflicts);
   const degraded = [
+    ...degradations,
     ...dedupe.filter((d) => d.degraded).map((d) => `${d.package}: ${d.degradeReason ?? "degraded"}`),
     ...conflicts.filter((c) => c.degraded).map((c) => `${c.package}: ${c.degradeReason ?? "degraded"}`),
   ];
@@ -222,12 +224,14 @@ function summarize(findings, dedupe, conflicts) {
   for (const f of findings) counts[f.severity] = (counts[f.severity] ?? 0) + 1;
   for (const d of dedupe) counts[d.severity] = (counts[d.severity] ?? 0) + 1;
   for (const c of conflicts) counts[c.severity] = (counts[c.severity] ?? 0) + 1;
+  // `highest` 必须覆盖**三类产物**，不是只扫 findings（M5 走查实测：真实树的 error 全在
+  // dedupe/conflicts 里，旧实现给出 `highest: null` 而 `error: 2` —— 自相矛盾的最高级别）。
   return {
     error: counts.error,
     warning: counts.warning,
     info: counts.info,
     total: counts.error + counts.warning + counts.info,
-    highest: maxSeverity(findings.map(findingSeverity)) ?? null,
+    highest: maxSeverity([...findings, ...dedupe, ...conflicts].map(findingSeverity)) ?? null,
   };
 }
 

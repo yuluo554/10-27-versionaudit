@@ -1,0 +1,9 @@
+{
+  "name": "fixture-two-targets",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "debug": "2.6.9",
+    "send": "0.18.0"
+  }
+}

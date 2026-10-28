@@ -5,6 +5,8 @@
   "dependencies": {
     "subsumed": "^1.0.0 || ^1.2.0",
     "star-subsumed": "* || ^1.0.0",
-    "disjoint": "^1.0.0 || ^2.0.0"
+    "disjoint": "^1.0.0 || ^2.0.0",
+    "partial-two": "1.0 || 1.0.5",
+    "partial-zero": "0.0 || 0.0.9"
   }
 }

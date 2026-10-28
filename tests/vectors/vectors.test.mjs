@@ -1,15 +1,17 @@
 /**
- * 向量跑者：读 `fixtures/vectors/<id>/expected.json`，真跑 CLI，逐条断言。
+ * 夹具跑者：读 `<dir>/expected.json`，真跑 CLI，逐条断言。
  *
- * 断言语义（`plan/04` §二）：
- *   - `mustContain`：每条 `{path, value|contains|deepEqual}` 都必须成立
+ * 两类被测对象（**同一套语义**，`plan/04` §二）：
+ *   - `fixtures/vectors/*`（14 组差分向量）
+ *   - `fixtures/real-tree`（M4 的 20 包真实树，目录布局与向量同形）
+ *
+ * 断言语义：
+ *   - `mustContain`：每条 `{path, value|contains|deepEqual|present}` 都必须成立
  *   - `mustNotContain`：每条都不能成立（防"报得太宽"）
  *   - `exitCode`：端到端退出码
  *   - `implementationVersions`：报告里的实现版本必须与声明一致（防"换了库版本却没重跑向量"）
  *
- * 路径语法（本项目自定，刻意简单）：
- *   `findings[0].rule`           数组下标
- *   `findings[?kind=x].dependency`  数组按字段值过滤后取第一个
+ * 断言引擎在 `tests/helpers/assertions.mjs`（真实树跑者共用；形态守卫也在那里）。
  */
 
 import { strict as assert } from "node:assert";
@@ -18,61 +20,14 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { cleanupFixtures } from "../helpers/fixtures.mjs";
+import { evaluateExpected } from "../helpers/assertions.mjs";
 import { REPO_ROOT } from "../../src/meta.mjs";
 
 after(cleanupFixtures);
 
 const VECTORS = join(REPO_ROOT, "fixtures", "vectors");
+const REAL_TREE = join(REPO_ROOT, "fixtures", "real-tree");
 const BIN = join(REPO_ROOT, "bin", "versionaudit.mjs");
-
-/** 解析路径：`a.b[0].c` 或 `a[?k=v&k2=v2].c`（多条件 AND）。 */
-function resolvePath(root, path) {
-  const tokens = [];
-  const re = /([A-Za-z_][\w-]*)|\[\?([^\]]+)\]|\[(\d+)\]/g;
-  let m;
-  while ((m = re.exec(path)) !== null) {
-    if (m[1] !== undefined) tokens.push({ type: "key", value: m[1] });
-    else if (m[2] !== undefined) {
-      const conditions = m[2].split("&").map((pair) => {
-        const eq = pair.indexOf("=");
-        return { key: pair.slice(0, eq), value: pair.slice(eq + 1) };
-      });
-      tokens.push({ type: "filter", conditions });
-    } else tokens.push({ type: "index", value: Number(m[3]) });
-  }
-  let cur = root;
-  for (const t of tokens) {
-    if (cur === undefined || cur === null) return undefined;
-    if (t.type === "key") cur = cur[t.value];
-    else if (t.type === "index") cur = Array.isArray(cur) ? cur[t.value] : undefined;
-    else if (t.type === "filter") {
-      if (!Array.isArray(cur)) return undefined;
-      cur = cur.find((x) => t.conditions.every((c) => String(x?.[c.key]) === c.value));
-    }
-  }
-  return cur;
-}
-
-function checkAssertion(report, assertion) {
-  const actual = resolvePath(report, assertion.path);
-  if (assertion.value !== undefined) {
-    return { ok: Object.is(actual, assertion.value) || actual === assertion.value, actual, expected: assertion.value };
-  }
-  if (assertion.contains !== undefined) {
-    const ok = typeof actual === "string" && actual.includes(assertion.contains);
-    return { ok, actual, expected: `contains ${assertion.contains}` };
-  }
-  if (assertion.deepEqual !== undefined) {
-    const a = JSON.stringify(actual);
-    const b = JSON.stringify(assertion.deepEqual);
-    return { ok: a === b, actual, expected: assertion.deepEqual };
-  }
-  if (assertion.present !== undefined) {
-    const has = actual !== undefined && actual !== null;
-    return { ok: assertion.present ? has : !has, actual, expected: `present=${assertion.present}` };
-  }
-  return { ok: false, actual, expected: "断言形态未知（需 value/contains/deepEqual/present）" };
-}
 
 const vectorDirs = existsSync(VECTORS)
   ? readdirSync(VECTORS, { withFileTypes: true })
@@ -81,27 +36,33 @@ const vectorDirs = existsSync(VECTORS)
       .sort()
   : [];
 
+/** 被测夹具：14 组向量 + 真实树（后者没有子目录，直接是一个夹具根）。 */
+const CASES = [
+  ...vectorDirs.map((name) => ({ label: `向量 ${name}`, dir: join(VECTORS, name) })),
+  ...(existsSync(join(REAL_TREE, "expected.json")) ? [{ label: "真实树 real-tree", dir: REAL_TREE }] : []),
+];
+
 // 非空跑自证：0 个向量时下面的 test 一条都不会生成 → 单独报一条
 test("向量集非空（阳性对照）", () => {
   assert.ok(vectorDirs.length > 0, "fixtures/vectors 下没有任何向量（判据空转）");
 });
 
-for (const name of vectorDirs) {
-  const expectedPath = join(VECTORS, name, "expected.json");
-  const inputDir = join(VECTORS, name, "input");
+for (const unit of CASES) {
+  const expectedPath = join(unit.dir, "expected.json");
+  const inputDir = join(unit.dir, "input");
 
-  test(`向量 ${name}`, () => {
-    assert.ok(existsSync(expectedPath), `${name}: 缺 expected.json`);
+  test(unit.label, () => {
+    assert.ok(existsSync(expectedPath), `${unit.label}: 缺 expected.json`);
     const expected = JSON.parse(readFileSync(expectedPath, "utf8"));
 
-    assert.ok(Array.isArray(expected.sources) && expected.sources.length > 0, `${name}: sources 为空（无来源的断言）`);
-    assert.ok(Array.isArray(expected.mustContain) && expected.mustContain.length > 0, `${name}: mustContain 为空`);
+    assert.ok(Array.isArray(expected.sources) && expected.sources.length > 0, `${unit.label}: sources 为空（无来源的断言）`);
+    assert.ok(Array.isArray(expected.mustContain) && expected.mustContain.length > 0, `${unit.label}: mustContain 为空`);
 
-    assert.ok(existsSync(inputDir), `${name}: 缺 input/ 目录`);
+    assert.ok(existsSync(inputDir), `${unit.label}: 缺 input/ 目录`);
 
     let stdout;
     let code;
-    // 向量可声明额外参数（如 R8 需要 --enable-r8 才开启）
+    // 夹具可声明额外参数（如 R8 需要 --enable-r8 才开启）
     const extraArgs = Array.isArray(expected.args) ? expected.args : [];
     try {
       stdout = execFileSync(process.execPath, [BIN, "audit", inputDir, "--format=json", ...extraArgs], {
@@ -114,7 +75,7 @@ for (const name of vectorDirs) {
       code = typeof error.status === "number" ? error.status : -1;
     }
 
-    assert.equal(code, expected.exitCode, `${name}: 退出码 ${code} ≠ expected ${expected.exitCode}`);
+    assert.equal(code, expected.exitCode, `${unit.label}: 退出码 ${code} ≠ expected ${expected.exitCode}`);
     const report = JSON.parse(stdout);
 
     // 实现版本必须与声明一致
@@ -122,19 +83,11 @@ for (const name of vectorDirs) {
       assert.equal(
         report.implementation.version,
         expected.implementationVersions.semver,
-        `${name}: semver 版本漂移（向量需要重跑或台账需要更新）`,
+        `${unit.label}: semver 版本漂移（向量需要重跑或台账需要更新）`,
       );
     }
 
-    const failures = [];
-    for (const assertion of expected.mustContain) {
-      const r = checkAssertion(report, assertion);
-      if (!r.ok) failures.push(`mustContain ${assertion.path} = ${JSON.stringify(r.expected)}，实际 ${JSON.stringify(r.actual)}`);
-    }
-    for (const assertion of expected.mustNotContain ?? []) {
-      const r = checkAssertion(report, assertion);
-      if (r.ok) failures.push(`mustNotContain ${assertion.path} 命中了 ${JSON.stringify(r.expected)}（报得太宽）`);
-    }
-    assert.deepEqual(failures, [], `${name}:\n${failures.join("\n")}`);
+    const failures = evaluateExpected(report, expected, unit.label);
+    assert.deepEqual(failures, [], `${unit.label}:\n${failures.join("\n")}`);
   });
 }

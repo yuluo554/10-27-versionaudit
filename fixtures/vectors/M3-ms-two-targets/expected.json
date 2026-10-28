@@ -1,0 +1,32 @@
+{
+  "rule": "M3",
+  "description": "ms 有两个锁定版本且两个请求者的范围都宽松：**全部可行目标**（2.0.0 与 2.1.3）都要列出，按 semver 升序",
+  "mustContain": [
+    { "path": "input.declarations", "value": 2 },
+    { "path": "input.packages", "value": 5 },
+    { "path": "dedupe[?package=ms].status", "value": "CONVERGIBLE" },
+    { "path": "dedupe[?package=ms].lockedVersions", "deepEqual": ["2.0.0", "2.1.3"] },
+    { "path": "dedupe[?package=ms].requesters", "value": 2 },
+    { "path": "dedupe[?package=ms].targets[0].version", "value": "2.0.0" },
+    { "path": "dedupe[?package=ms].targets[1].version", "value": "2.1.3" },
+    { "path": "dedupe[?package=ms].targets[0].proof[0].satisfies", "value": true },
+    { "path": "dedupe[?package=ms].targets[0].proof[1].satisfies", "value": true },
+    { "path": "dedupe[?package=ms].targets[1].proof[0].satisfies", "value": true },
+    { "path": "dedupe[?package=ms].targets[1].proof[1].satisfies", "value": true },
+    { "path": "dedupe[?package=ms].degraded", "value": false }
+  ],
+  "mustNotContain": [
+    { "path": "dedupe[?package=ms].minimalConflictSet", "present": true },
+    { "path": "dedupe[?package=ms].status", "value": "NOT_CONVERGIBLE" }
+  ],
+  "exitCode": 0,
+  "implementationVersions": {
+    "semver": "7.8.5",
+    "node": ">=20"
+  },
+  "sources": [
+    "data/README.md §7.1（`CONVERGIBLE` 的输出是**全部**满足条件的 v，按 semver 升序；不是只给一个）",
+    "data/README.md §1.1 A2（`^2.0.0` 同时满足 2.0.0 与 2.1.3 —— 两个锁定版本都可当目标）",
+    "plan/03 M3（三态判定顺序；`--prefer` 只改标注不改可行目标集合）"
+  ]
+}

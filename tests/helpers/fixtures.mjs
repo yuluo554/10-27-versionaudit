@@ -62,29 +62,35 @@ export async function runCli(argv) {
   return { code, stdout, stderr, json };
 }
 
-/** 最小 v3 锁构造器（夹具少写一半样板）。 */
-export function lockV3(rootDeps, packages) {
+/**
+ * 最小 v3 锁构造器（夹具少写一半样板）。
+ *
+ * `rootExtra` 用来写**额外的根声明键**：真实 npm 的根条目是四类键**各写各的**
+ * （`devDependencies` / `optionalDependencies` / `peerDependencies` 不会被并进
+ * `dependencies`——台账 A22）。例：`lockV3({a:"^1.0.0"}, pkgs, {optionalDependencies:{x:"^1"}})`。
+ */
+export function lockV3(rootDeps, packages, rootExtra = {}) {
   return {
     name: "<fixture>",
     version: "1.0.0",
     lockfileVersion: 3,
     requires: true,
     packages: {
-      "": { name: "<fixture>", version: "1.0.0", dependencies: rootDeps },
+      "": { name: "<fixture>", version: "1.0.0", dependencies: rootDeps, ...rootExtra },
       ...packages,
     },
   };
 }
 
 /** 最小 v2 锁：packages + dependencies 双视图（必须自洽）。 */
-export function lockV2(rootDeps, packages, compatDeps) {
+export function lockV2(rootDeps, packages, compatDeps, rootExtra = {}) {
   return {
     name: "<fixture>",
     version: "1.0.0",
     lockfileVersion: 2,
     requires: true,
     packages: {
-      "": { name: "<fixture>", version: "1.0.0", dependencies: rootDeps },
+      "": { name: "<fixture>", version: "1.0.0", dependencies: rootDeps, ...rootExtra },
       ...packages,
     },
     dependencies: compatDeps ?? {},

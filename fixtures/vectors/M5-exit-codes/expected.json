@@ -1,18 +1,76 @@
 {
   "rule": "M5",
-  "description": "退出码矩阵：R5 空交集与 M2 不满足都是 error → 退出码 1；且两条独立维度都必须在场",
+  "description": "退出码矩阵：R5 空交集与 M2 不满足都是 error → 退出码 1；同时以「满足/不满足」成对输入独立断言 A2/A6/A7 的布尔边界",
   "mustContain": [
-    { "path": "findings[?package=empty].rule", "value": "R5" },
-    { "path": "findings[?kind=manifest-not-satisfied].dependency", "value": "empty" },
-    { "path": "summary.error", "value": 2 },
-    { "path": "summary.highest", "value": "error" },
-    { "path": "policy.failOn", "value": "error" }
+    {
+      "path": "findings[?package=empty].rule",
+      "value": "R5"
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied&dependency=empty].lockedVersion",
+      "value": "1.0.0"
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied&dependency=one-dot-out].lockedVersion",
+      "value": "1.1.0"
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied&dependency=two-dot-out].lockedVersion",
+      "value": "0.1.0"
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied&dependency=caret-zero-out].lockedVersion",
+      "value": "0.3.0"
+    },
+    {
+      "path": "summary.error",
+      "value": 5
+    },
+    {
+      "path": "summary.highest",
+      "value": "error"
+    },
+    {
+      "path": "policy.failOn",
+      "value": "error"
+    },
+    {
+      "path": "input.declarations",
+      "value": 8
+    },
+    {
+      "path": "input.packages",
+      "value": 9
+    }
   ],
-  "mustNotContain": [{ "path": "findings[?package=ok].severity", "value": "error" }],
+  "mustNotContain": [
+    {
+      "path": "findings[?package=ok]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied&dependency=caret-zero-ok]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied&dependency=one-dot-ok]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied&dependency=two-dot-ok]",
+      "present": true
+    }
+  ],
   "exitCode": 1,
-  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "implementationVersions": {
+    "semver": "7.8.5",
+    "node": ">=20"
+  },
   "sources": [
     "data/README.md §7.3（退出码矩阵与优先级 3 > 4 > 1 > 2 > 0）",
-    "data/README.md §7.4（--fail-on 默认 error，报告须回显）"
+    "data/README.md §7.4（--fail-on 默认 error，报告须回显）",
+    "data/README.md §1.1 A2（satisfies('0.2.9','^0.2.3')=true / satisfies('0.3.0','^0.2.3')=false）",
+    "data/README.md §1.1 A6（1.0：satisfies('1.0.5')=true / satisfies('1.1.0')=false）",
+    "data/README.md §1.1 A7（0.0：satisfies('0.0.9')=true / satisfies('0.1.0')=false）"
   ]
 }

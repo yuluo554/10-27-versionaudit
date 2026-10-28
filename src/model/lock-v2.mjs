@@ -40,6 +40,7 @@ export function parseLockV2(raw, { file = "package-lock.json" } = {}) {
           name: entry.name ?? (typeof raw.name === "string" ? raw.name : null),
           version: entry.version ?? (typeof raw.version === "string" ? raw.version : null),
           dependencies: entry.dependencies,
+          devDependencies: entry.devDependencies,
           peerDependencies: entry.peerDependencies,
           optionalDependencies: entry.optionalDependencies,
           dev: entry.dev,
@@ -89,7 +90,8 @@ export function parseLockV2(raw, { file = "package-lock.json" } = {}) {
     sourceName: typeof raw.name === "string" ? raw.name : null,
     sourceVersion: typeof raw.version === "string" ? raw.version : null,
     rootManifestDeps: root ? root.deps : {},
-    // v2 的 root 条目还带 peer/optional 的声明，M2/M4 需要
+    // v2 的 root 条目还带 dev/peer/optional 的声明，M2/M4 需要（四类键各写各的，台账 A22）
+    rootDevDeps: root ? root.devDeps : {},
     rootPeerDeps: root ? root.peerDeps : {},
     rootOptionalDeps: root ? root.optionalDeps : {},
     packages: sortPackages(packages),

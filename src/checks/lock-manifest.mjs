@@ -24,10 +24,20 @@ const SEVERITY_FALLBACK = Object.freeze({
  * @param {object} manifest ManifestIR
  * @param {object} lock LockIR
  * @param {object} graph GraphIR
- * @param {{severityTable: object, strict?: boolean}} ctx
+ * @param {{severityTable: object, strict?: boolean,
+ *          onDegraded?: (msg: string) => void}} ctx
+ * @returns {{findings: object[], degradations: string[]}}
+ *   `degradations` 非空的含义是"有判定做不了"（当前只有一类：锁条目无 `version`，
+ *   见 K17 —— 那是"无法判定"，不是"不满足"）。缺省也该由调用方写进报告的
+ *   `degraded` 字段（K8：任何降级必须带 `degraded: true` + `reason`，不许静默近似）。
  */
 export function runLockManifestCheck(manifest, lock, graph, ctx = {}) {
   const table = ctx.severityTable ?? SEVERITY_FALLBACK;
+  const degradations = [];
+  const degrade = (msg) => {
+    degradations.push(msg);
+    ctx.onDegraded?.(msg);
+  };
   const findings = [];
   const push = (finding) => {
     findings.push({ ...finding, severity: table[finding.kind] ?? SEVERITY_FALLBACK[finding.kind] ?? "info" });
@@ -60,7 +70,20 @@ export function runLockManifestCheck(manifest, lock, graph, ctx = {}) {
     // 只记录"声明的是 dist-tag"，把判定交给 R2（已在 M1 报出）。
     const declaredExpanded = validRange(edge.range);
     if (declaredExpanded === null) {
-      // 非 semver 范围：不做满足性判定（不制造 false 的 manifest-not-satisfied）
+      // 非 semver 范围（含 `file:` / `link:` 本地路径）：不做满足性判定
+      continue;
+    }
+
+    // **锁中条目没有版本时不得制造"不满足"**（台账 A23）。
+    // 实测 npm 11.12.1 会写出两类无版本条目：
+    //   ① `{"resolved":"../lib","link":true}` —— file:/workspace 链接，真实版本在链接目标里，锁不记录；
+    //   ② `{"optional": true}` —— 声明了但没装上（平台不匹配 / 离线缺缓存）。
+    // 这两种情形下 `satisfies(null, range)` 恒为 false，直接判"不满足"= 把"无法判定"
+    // 说成"判定为错"。真实 npm 锁上实测 `npm ci` 两者都 PASS。
+    if (edge.lockedVersion === null) {
+      degrade(
+        `${edge.dependency}（${chain.join(" › ")}）：锁中条目无 version 字段（link/optional 占位），无法判定是否满足 ${edge.range}`,
+      );
       continue;
     }
 
@@ -98,42 +121,67 @@ export function runLockManifestCheck(manifest, lock, graph, ctx = {}) {
   }
 
   // ── 2. manifest-changed-unsynced ─────────────────────────────────────────
-  // 这是最接近 `npm ci` 的基线对照：lock 内 packages[""] 的 dependencies vs manifest。
+  // 这是最接近 `npm ci` 的基线对照：lock 内 packages[""] 的各声明键 vs manifest。
   //
-  // 口径（按 npm 的实际写锁形态）：`packages[""].dependencies` 覆盖 manifest 的
-  // `dependencies` **与** `optionalDependencies`（npm 把 optional 也写进根 dependencies，
-  // 条目上另标 `optional: true`）。devDependencies 单独比对（若锁里写了）。
-  const lockRootDeps = lock.rootManifestDeps ?? {};
-  const hasLockRootDeps = Object.keys(lockRootDeps).length > 0;
+  // **口径修正（M3，台账 A22/A23）**：旧实现假设"npm 把 optionalDependencies 也写进根
+  // dependencies"，于是拿 `{...optional, ...dependencies}` 去比对 `packages[""].dependencies`。
+  // 实测 npm 11.12.1 的根条目是**四类键各写各的**：
+  //   {"dependencies":{"semver":"7.8.5"},"devDependencies":{…},"optionalDependencies":{…}}
+  // 旧口径在**任何**带 optionalDependencies 的真实锁上都会误报
+  // `manifest-changed-unsynced`（报"锁中根声明缺失"，实测工具退出码 1 而 `npm ci` 退出码 0）。
+  // 正解：**逐类对比同一类键**（dependencies↔dependencies、optionalDependencies↔…），
+  // 不做跨类合并。锁里没写该类键时（键缺失 = 该类无声明）按"空"比对。
+  //
+  // 注意 devDependencies：实测 `npm ci` 在 manifest 增减/修改 dev 依赖时**均 PASS**
+  // （A24：npm 只校验"锁能否满足 manifest"，不管锁是否多余），所以 dev **不参与**这里
+  // 的比对 —— 比 dev 只会制造 npm ci 不会有的失败。这是有意为之，登记在
+  // `docs/limitations.md` §3.4。
+  const rootPairs = [
+    ["dependencies", lock.rootManifestDeps, manifest.deps.dependencies],
+    ["optionalDependencies", lock.rootOptionalDeps, manifest.deps.optionalDependencies],
+  ];
+  const hasLockRootDeps =
+    Object.keys(lock.rootManifestDeps ?? {}).length > 0 ||
+    Object.keys(lock.rootOptionalDeps ?? {}).length > 0;
   if (hasLockRootDeps) {
-    const manifestDeps = { ...manifest.deps.optionalDependencies, ...manifest.deps.dependencies };
-    const keys = new Set([...Object.keys(lockRootDeps), ...Object.keys(manifestDeps)]);
-    for (const name of [...keys].sort()) {
-      const inLock = lockRootDeps[name];
-      const inManifest = manifestDeps[name];
-      if (inLock === inManifest) continue;
-      push({
-        kind: "manifest-changed-unsynced",
-        declaringPackage: manifest.name ?? "<root>",
-        declaringPath: [ROOT_MARKER],
-        dependency: name,
-        declaredRange: inManifest ?? null,
-        lockedVersion: inLock !== undefined ? inLock : null,
-        requesterPath: [ROOT_MARKER],
-        explanation:
-          inManifest === undefined
-            ? `锁中根声明有 ${name}@${inLock}，manifest 已删除该声明`
-            : inLock === undefined
-              ? `manifest 声明 ${name}@${inManifest}，锁中根声明缺失（npm ci 会 EUSAGE）`
-              : `manifest 声明 ${name}@${inManifest}，锁中根声明为 ${name}@${inLock}`,
-      });
+    for (const [kind, lockMap, manifestMap] of rootPairs) {
+      const keys = new Set([...Object.keys(lockMap ?? {}), ...Object.keys(manifestMap ?? {})]);
+      for (const name of [...keys].sort()) {
+        const inLock = (lockMap ?? {})[name];
+        const inManifest = (manifestMap ?? {})[name];
+        if (inLock === inManifest) continue;
+        push({
+          kind: "manifest-changed-unsynced",
+          declaringPackage: manifest.name ?? "<root>",
+          declaringPath: [ROOT_MARKER],
+          dependency: name,
+          declaredRange: inManifest ?? null,
+          lockedVersion: inLock !== undefined ? inLock : null,
+          requesterPath: [ROOT_MARKER],
+          explanation:
+            inManifest === undefined
+              ? `锁中根 ${kind} 有 ${name}@${inLock}，manifest 已删除该声明`
+              : inLock === undefined
+                ? `manifest 声明 ${name}@${inManifest}，锁中根 ${kind} 缺失（npm ci 会 EUSAGE）`
+                : `manifest 声明 ${name}@${inManifest}，锁中根 ${kind} 为 ${name}@${inLock}`,
+        });
+      }
     }
   }
 
   // ── 3. lock-extra-undeclared ─────────────────────────────────────────────
-  // 判据 = 声明图可达性（不依赖 node_modules 是否存在，plan/01 §3.2）
+  // 判据 = 声明图可达性（不依赖 node_modules 是否存在，plan/01 §3.2）。
+  // **跳过两类条目（台账 A24 实测）**：
+  //   ① `link: true` 的链接条目 —— 真实 npm 会对 file:/workspace 依赖写
+  //      `node_modules/lib: {"resolved":"../lib","link":true}`，它由 `file:` 声明引入，
+  //      只是版本在链接目标里而不在锁里；真版本另存于 `"../lib"` 这类树外路径条目。
+  //   ② 树外路径条目（不以 `node_modules/` 开头，如 `"../lib"`）—— 那是链接目标的体，
+  //      不是被安装到树里的包；旧实现的 `nameFromPath("../lib")` 会解析出 `".."`，
+  //      于是在**任何**含 file: 依赖的真实锁上误报 `lock-extra-undeclared("..")`。
   for (const pkg of lock.packages) {
     if (pkg.path === ROOT_MARKER) continue;
+    if (!pkg.path.startsWith("node_modules/")) continue; // 树外（链接目标体）
+    if (pkg.link) continue; // 链接条目：版本在目标里，不判
     if (graph.reachable.has(pkg.path)) continue;
     push({
       kind: "lock-extra-undeclared",
@@ -147,7 +195,7 @@ export function runLockManifestCheck(manifest, lock, graph, ctx = {}) {
     });
   }
 
-  return sortM2(findings);
+  return { findings: sortM2(findings), degradations };
 }
 
 /** 声明范围下界所指的最小版本（只在 --strict 用；不装新依赖，用 validRange 的展开结果自行取）。 */

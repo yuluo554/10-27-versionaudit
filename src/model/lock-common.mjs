@@ -64,14 +64,21 @@ function assertStringMap(value, label, ctx) {
 }
 
 /**
- * 构造一条包记录。`deps` 只收 dependencies（peer/optional 分开存，因为它们的语义不同：
- * peer 是"由上层提供"，optional 是"缺了不算错"——混在一起会让 M4 判错）。
+ * 构造一条包记录。`deps` 只收 dependencies（peer/optional/dev 分开存，因为它们的语义不同：
+ * peer 是"由上层提供"，optional 是"缺了不算错"，dev 是"发布后不存在"——混在一起会让 M2/M4 判错）。
+ *
+ * **`devDeps` 是根条目专有的**（npm 只把 `devDependencies` 写在根上）。实测 npm 11.12.1
+ * 写出的根条目是四类键**各写各的**：`{"dependencies":{"semver":"7.8.5"},"devDependencies":{…},
+ * "optionalDependencies":{…},"peerDependencies":{…}}` —— dev/optional **不会**被并进
+ * `dependencies`（台账 A22）。旧实现按"optional 被并进 dependencies"的假设比对根声明，
+ * 于是任何带 optionalDependencies 的真实锁都会被误报 `manifest-changed-unsynced`（A23）。
  */
 export function buildPackageEntry({
   path,
   name,
   version,
   dependencies,
+  devDependencies,
   peerDependencies,
   optionalDependencies,
   dev,
@@ -86,6 +93,7 @@ export function buildPackageEntry({
     name: name ?? nameFromPath(path),
     version: typeof version === "string" ? version : null,
     deps: assertStringMap(dependencies, "dependencies", ctx),
+    devDeps: assertStringMap(devDependencies, "devDependencies", ctx),
     peerDeps: assertStringMap(peerDependencies, "peerDependencies", ctx),
     optionalDeps: assertStringMap(optionalDependencies, "optionalDependencies", ctx),
     dev: dev === true,

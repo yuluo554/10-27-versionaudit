@@ -1,23 +1,72 @@
 {
   "rule": "M2",
-  "description": "锁中 send@0.18.0 不满足 manifest 的 ^0.19.2；必须给声明项 + 范围 + 锁中版本 + 请求者路径",
+  "description": "锁中 send@0.18.0 不满足 manifest 的 ^0.19.2；必须给声明项 + 范围 + 锁中版本 + 请求者路径。同族反例：已满足的声明不得报",
   "mustContain": [
-    { "path": "findings[?kind=manifest-not-satisfied].dependency", "value": "send" },
-    { "path": "findings[?kind=manifest-not-satisfied].declaringPackage", "value": "fixture-m2" },
-    { "path": "findings[?kind=manifest-not-satisfied].declaredRange", "value": "^0.19.2" },
-    { "path": "findings[?kind=manifest-not-satisfied].lockedVersion", "value": "0.18.0" },
-    { "path": "findings[?kind=manifest-not-satisfied].requesterPath", "deepEqual": ["<root>"] },
-    { "path": "findings[?kind=manifest-not-satisfied].severity", "value": "error" },
-    { "path": "input.lockfileVersion", "value": 3 }
+    {
+      "path": "findings[?kind=manifest-not-satisfied].dependency",
+      "value": "send"
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied].declaringPackage",
+      "value": "fixture-m2"
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied].declaredRange",
+      "value": "^0.19.2"
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied].lockedVersion",
+      "value": "0.18.0"
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied].requesterPath",
+      "deepEqual": [
+        "<root>"
+      ]
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied].severity",
+      "value": "error"
+    },
+    {
+      "path": "input.lockfileVersion",
+      "value": 3
+    },
+    {
+      "path": "input.declarations",
+      "value": 1
+    },
+    {
+      "path": "input.packages",
+      "value": 3
+    }
   ],
   "mustNotContain": [
-    { "path": "findings", "value": "lock-extra-undeclared" },
-    { "path": "findings", "value": "missing-from-lock" }
+    {
+      "path": "findings[?kind=lock-extra-undeclared]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=missing-from-lock]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=manifest-changed-unsynced]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied&dependency=ms]",
+      "present": true
+    }
   ],
   "exitCode": 1,
-  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "implementationVersions": {
+    "semver": "7.8.5",
+    "node": ">=20"
+  },
   "sources": [
     "data/README.md §3.2（npm ci 只报目标版本 0.19.2，无范围、无来源路径）",
-    "data/README.md §7.3（manifest-not-satisfied 默认 error）"
+    "data/README.md §7.3（manifest-not-satisfied 默认 error）",
+    "plan/03 M2（四类 kind 判据；requesterPath 缺失即缺陷）"
   ]
 }

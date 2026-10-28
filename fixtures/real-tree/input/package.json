@@ -1,0 +1,10 @@
+{
+  "name": "fixture-real-tree",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@fixture/bytes": "3.1.2",
+    "debug": "2.6.9",
+    "send": "0.18.0"
+  }
+}

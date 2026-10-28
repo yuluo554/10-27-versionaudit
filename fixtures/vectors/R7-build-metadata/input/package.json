@@ -4,6 +4,13 @@
   "private": true,
   "dependencies": {
     "with-build": "1.0.0+build.1",
-    "plain": "1.0.0"
+    "plain": "1.0.0",
+    "with-build-range": ">=1.2.0+build <2.0.0",
+    "with-build-pre": "1.0.0-rc.1+build",
+    "with-build-caret": "^1.2.3+build",
+    "with-build-branch": "1.0.0+build.1 || ^2.0.0",
+    "range-no-build": ">=1.2.0 <2.0.0",
+    "pre-no-build": "1.0.0-rc.1",
+    "caret-no-build": "^1.2.3"
   }
 }

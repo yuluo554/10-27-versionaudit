@@ -1,16 +1,63 @@
 {
   "rule": "R6",
-  "description": "|| 分支被包含（^1.2.0 ⊂ ^1.0.0、^1.0.0 ⊂ *）必须报；互不包含的不得报",
+  "description": "|| 分支被包含（^1.2.0 ⊂ ^1.0.0、^1.0.0 ⊂ *）必须报；互不包含的不得报。两位部分版本的分支同时为 A6/A7 提供独立断言",
   "mustContain": [
-    { "path": "findings[?package=subsumed&rule=R6].rule", "value": "R6" },
-    { "path": "findings[?package=star-subsumed&rule=R6].rule", "value": "R6" },
-    { "path": "findings[?package=subsumed&rule=R6].evidence", "contains": "subset" }
+    {
+      "path": "findings[?package=subsumed&rule=R6].rule",
+      "value": "R6"
+    },
+    {
+      "path": "findings[?package=star-subsumed&rule=R6].rule",
+      "value": "R6"
+    },
+    {
+      "path": "findings[?package=subsumed&rule=R6].evidence",
+      "contains": "subset"
+    },
+    {
+      "path": "findings[?package=partial-two].rule",
+      "value": "R6"
+    },
+    {
+      "path": "findings[?package=partial-two].expandedRange",
+      "value": ">=1.0.0 <1.1.0-0||1.0.5"
+    },
+    {
+      "path": "findings[?package=partial-zero].rule",
+      "value": "R6"
+    },
+    {
+      "path": "findings[?package=partial-zero].expandedRange",
+      "value": "<0.1.0-0||0.0.9"
+    },
+    {
+      "path": "input.declarations",
+      "value": 5
+    },
+    {
+      "path": "input.packages",
+      "value": 6
+    }
   ],
-  "mustNotContain": [{ "path": "findings[?package=disjoint&rule=R6]", "present": true }],
+  "mustNotContain": [
+    {
+      "path": "findings[?package=disjoint&rule=R6]",
+      "present": true
+    },
+    {
+      "path": "findings[?package=partial-two&rule=R2]",
+      "present": true
+    }
+  ],
   "exitCode": 0,
-  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "implementationVersions": {
+    "semver": "7.8.5",
+    "node": ">=20"
+  },
   "sources": [
     "data/README.md §1.1 A12（intersects 两两判定；subset 是它的子集判定对应物）",
+    "data/README.md §1.1 A6（1.0 = >=1.0.0 <1.1.0-0，不是 <2.0.0）",
+    "data/README.md §1.1 A7（0.0 = <0.1.0-0，无 >=0.0.0 下界）",
     "plan/01 §3.1 R6（^1.0.0 || ^1.2.0 后者被包含；* || ^1.0.0 整支被包含；^1.0.0 || ^2.0.0 为反例）"
   ]
 }

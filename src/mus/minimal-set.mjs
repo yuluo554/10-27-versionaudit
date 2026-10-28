@@ -3,12 +3,20 @@
  *
  * 定义（`data/README.md` §7.2）：
  *   M ⊆ R 是最小冲突集 ⇔ ① M 无解（任何候选版本都不满足 M 的全部范围）；
- *                        ② ∀ M' ⊊ M，M' 有解。
+ *                        ② ∀ M' ⊊ M，M' 有解（等价于：移除 M 的任一元素后有解；
+ *                           "有解"对子集单调，所以单元素移除已足够）。
  *
- * 求法：按基数 k = 2,3,… 升序遍历子集，首个无解即最小。请求者数通常 < 20。
- * 超限（`--max-requesters`）时**必须显式降级**，不许静默给出非最小结果。
+ * 两条求法（`data/README.md` §7.2）：
+ *   1. **未超限**：按基数 k = 1,2,3,… 升序遍历子集，首个无解层即**基数最小**，同层平局全返回。
+ *   2. **超限**（`--max-requesters`，默认 12）：改用**删除法**（deletion-based）——
+ *      从全量 R（已知无解）出发，逐个尝试移除请求者，只有移除后仍无解才真的移除。
+ *      O(n) 次可满足性检查，结果**仍是无解集且满足"移除任一元素后有解"**（真 MUS），
+ *      只是**不保证基数最小**、也**不列全部平局集**；因此必须显式 `degraded: true`。
  *
- * 两个实现细节（都来自 references 的变异验证教训）：
+ * **降级不能把"不是冲突"报成冲突**（M4 实测缺陷）：旧实现对超限直接取"候选最少的 2 条"，
+ * 那 2 条可能**可满足**——报告里却叫它 `minimalConflictSet`。删除法保证返回集合确实无解。
+ *
+ * 两个实现细节（都来自变异验证教训）：
  *   - **单元素无解也要能返回**：如果某个范围本身是空交集（R5），MUS 就是它单元素。
  *     从 k=2 开始会漏掉这类，且会让"移除任一元素冲突消失"的属性测试失效。
  *   - **平局全返回**：同基数多个 MUS 按请求者路径字典序排序，全部返回，不随机取一个。
@@ -38,19 +46,26 @@ export function findMinimalConflictSet(requesters, candidates, satisfiesFn, opts
   }
 
   if (total > maxRequesters) {
-    // 显式降级：贪心近似（移除"最不可能被满足"的请求者），并标明不是最小
-    const greedy = [...requesters].sort((a, b) => {
-      const ca = candidates.filter((v) => satisfiesFn(v, a.range)).length;
-      const cb = candidates.filter((v) => satisfiesFn(v, b.range)).length;
-      if (ca !== cb) return ca - cb;
-      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-    });
-    const seed = greedy.slice(0, 2);
+    // 显式降级（`data/README.md` §7.2）：删除法求**一个**极小冲突集。
+    // 前提：调用方只在"全量 R 无解"时进来（dedupe：没有候选满足全部请求者；conflict：无共同版本）。
+    // 不变量：每轮只移除"移除后仍无解"的元素 → 结束时集合无解，且移除任一元素后有解
+    // （后到的移除只会让集合更小，而"有解"对子集单调，因此早先测过的满足性仍然成立）。
+    const keep = [];
+    for (const r of requesters) if (!keep.includes(r)) keep.push(r);
+    let core = keep;
+    for (const r of keep) {
+      const smaller = core.filter((x) => x !== r);
+      if (smaller.length > 0 && !isSatisfiable(smaller, candidates, satisfiesFn)) {
+        core = smaller;
+      }
+    }
+    const minimal = [...core].sort(compareRequester);
     return {
-      minimalSets: [seed],
-      minimal: seed,
+      minimalSets: [minimal],
+      minimal,
       degraded: true,
-      reason: `requesters > max-requesters (${maxRequesters})：返回贪心近似，非最小集`,
+      // 口径固定串（`data/README.md` §7.2 / `plan/03` M3）：超限必须写这一句。
+      reason: "requesters > max",
       searched: 0,
     };
   }

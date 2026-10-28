@@ -129,17 +129,11 @@ test("NOT_CONVERGIBLE：无已锁定版本满足全部请求者 → 给 MUS", as
   assert.ok(item.minimalConflictSet.length >= 2, "MUS 至少两个请求者");
   assert.equal(item.reason, "empty-intersection", "两个范围真无交集");
 
-  // MUS 可机械校验：任一真子集有解（= 移除任一元素后冲突消失）
-  const locked = item.lockedVersions;
-  const minimal = item.minimalConflictSet;
-  for (let i = 0; i < minimal.length; i += 1) {
-    const smaller = minimal.filter((_, j) => j !== i);
-    const hasSolution = locked.some((v) => smaller.every((m) => satisfies(v, m.range)));
-    assert.ok(hasSolution, `移除 ${minimal[i].requester} 后应可满足`);
-  }
+  // MUS 可机械校验：① 无解 ② 移除任一元素后可解
+  assertMusProperties(item);
 });
 
-test("REQUIRES_OVERRIDE：MUS 严格小于全量请求者", async () => {
+test("REQUIRES_OVERRIDE：MUS 严格小于全量请求者（建议必须标为 suggestion）", async () => {
   // 3 个请求者：两个能共处，第三个冲突
   const manifest = {
     name: "f",
@@ -161,11 +155,18 @@ test("REQUIRES_OVERRIDE：MUS 严格小于全量请求者", async () => {
   const { json } = await runCli(["dedupe", dir, "--format=json"]);
   const item = json.dedupe.find((d) => d.package === "shared");
   assert.ok(item);
-  // ^9.0.0 与其余两条都无法共处（只有单元素 MUS）
+  // ^9.0.0 与其余两条都无法共处 → MUS 是 {a,c} / {b,c}（各 2 条）
+  assert.equal(item.status, "REQUIRES_OVERRIDE", "MUS 严格小于全量请求者 → REQUIRES_OVERRIDE");
   assert.ok(item.minimalConflictSet.length < item.requesters, "MUS 必须小于全量请求者集");
-  if (item.status === "REQUIRES_OVERRIDE") {
-    assert.equal(item.suggestion.nature, "suggestion", "建议必须标为 suggestion 而非事实");
+  // §7.2「平局全返回」：两个同基数 MUS 都要回，不随机取一个
+  assert.ok(Array.isArray(item.minimalConflictSets), "同基数多个 MUS 时必须列 minimalConflictSets");
+  assert.equal(item.minimalConflictSets.length, 2, "本树有两个 2 元 MUS");
+  for (const set of item.minimalConflictSets) {
+    assert.equal(set.length, 2);
+    assert.ok(set.some((m) => m.range === "^9.0.0"), "每个 MUS 都含唯一的冲突源 ^9.0.0");
   }
+  // 建议必须标为 suggestion（不是事实）——无条件断言，不做 if 跳过
+  assert.equal(item.suggestion?.nature, "suggestion", "建议必须标为 suggestion 而非事实");
 });
 
 test("--prefer=latest 只改排序与标注，不改可行性判定", async () => {
@@ -183,7 +184,58 @@ test("--prefer=latest 只改排序与标注，不改可行性判定", async () =
   assert.equal(b.targets[0].preferred, true, "latest 应标注首选");
 });
 
-test("--max-requesters 超限必须显式 degraded 且不冒充最小集", async () => {
+/**
+ * MUS 的两条性质（`data/README.md` §7.2）——**降级结果也必须满足**：
+ *   ① M 无解：没有任何已锁定版本同时满足 M 的全部范围；
+ *   ② M 极小：移除 M 的任一元素后，存在已锁定版本满足剩余全部范围。
+ * 这是"最小冲突集可机械校验"的可执行形态（`plan/05` M4 DoD）。
+ */
+function assertMusProperties(item) {
+  const ranges = item.minimalConflictSet.map((m) => m.range);
+  const locked = item.lockedVersions;
+  assert.ok(ranges.length > 0, "MUS 不能为空集");
+  assert.ok(
+    !locked.some((v) => ranges.every((r) => satisfies(v, r))),
+    `M 必须无解（有解就不是冲突集）：${JSON.stringify(ranges)}`,
+  );
+  for (let i = 0; i < ranges.length; i += 1) {
+    const rest = ranges.filter((_, j) => j !== i);
+    assert.ok(
+      locked.some((v) => rest.every((r) => satisfies(v, r))),
+      `移除 ${JSON.stringify(ranges[i])} 后必须可满足（否则不是极小集）`,
+    );
+  }
+}
+
+test("--max-requesters 超限：必须显式 degraded + 固定口径 reason + **仍是无解的极小集**", async () => {
+  // 12 条精确钉 1.0.0 + 1 条 ^1.5.0 → 13 个请求者（超过默认上限 12），全量无解。
+  // 旧实现（取"候选最少的 2 条"）会返回两条 "1.0.0"——那两条**可满足**，等于把"不是冲突"报成冲突。
+  const deps = {};
+  const pkgs = {};
+  for (let i = 0; i < 12; i += 1) {
+    const name = `p${String(i).padStart(2, "0")}`;
+    deps[name] = "^1.0.0";
+    pkgs[`node_modules/${name}`] = { version: "1.0.0", dependencies: { shared: "1.0.0" } };
+    pkgs[`node_modules/${name}/node_modules/shared`] = { version: "1.0.0" };
+  }
+  deps.q = "^1.0.0";
+  pkgs["node_modules/q"] = { version: "1.0.0", dependencies: { shared: "^1.5.0" } };
+  pkgs["node_modules/q/node_modules/shared"] = { version: "1.5.0" };
+  const manifest = { name: "f", version: "1.0.0", dependencies: deps };
+  const dir = makeFixture(manifest, lockV3(deps, pkgs));
+  const { json } = await runCli(["dedupe", dir, "--format=json"]);
+  const item = json.dedupe.find((d) => d.package === "shared");
+  assert.ok(item);
+  assert.equal(item.degraded, true, "超限必须显式降级");
+  assert.equal(item.degradeReason, "requesters > max", "reason 用 §7.2 的固定口径串");
+  assert.equal(item.requesters, 13);
+  assertMusProperties(item);
+  assert.ok(item.minimalConflictSet.length < item.requesters);
+  assert.ok(json.degraded.length > 0, "报告顶层必须汇总降级");
+  assert.ok(json.degraded[0].includes("requesters > max"));
+});
+
+test("--max-requesters=5：14 个互不相同范围上也必须是无解的极小集", async () => {
   // 构造 14 个请求者同名包的不同范围
   const deps = {};
   const pkgs = {};
@@ -194,12 +246,85 @@ test("--max-requesters 超限必须显式 degraded 且不冒充最小集", async
     pkgs[`node_modules/${name}/node_modules/shared`] = { version: `${i}.0.0` };
   }
   const manifest = { name: "f", version: "1.0.0", dependencies: deps };
-  const lock = lockV3(deps, pkgs);
-  const dir = makeFixture(manifest, lock);
+  const dir = makeFixture(manifest, lockV3(deps, pkgs));
   const { json } = await runCli(["dedupe", dir, "--format=json", "--max-requesters=5"]);
   const item = json.dedupe.find((d) => d.package === "shared");
   assert.ok(item);
   assert.equal(item.degraded, true, "超限必须显式降级");
-  assert.ok(item.degradeReason.includes("max-requesters"), "必须写明降级原因");
+  assert.equal(item.degradeReason, "requesters > max");
+  assertMusProperties(item);
   assert.ok(json.degraded.length > 0, "报告顶层必须汇总降级");
 });
+
+test("reason 两态不许合并：区间非空但无候选 → no-locked-candidate", async () => {
+  // 两个范围几何上相交（(1.0.0, 1.0.2)），但锁定版本只有 1.0.0 / 1.0.2 → 没有候选落在交集里。
+  // 这与"区间本身为空"是两件事（plan/03 M3 诚实性约束 / data/README §7.1）。
+  const deps = { a: "^1.0.0", b: "^1.0.0" };
+  const lock = lockV3(deps, {
+    "node_modules/a": { version: "1.0.0", dependencies: { shared: ">=1.0.0 <1.0.2" } },
+    "node_modules/a/node_modules/shared": { version: "1.0.0" },
+    "node_modules/b": { version: "1.0.0", dependencies: { shared: ">1.0.0 <=1.0.2" } },
+    "node_modules/b/node_modules/shared": { version: "1.0.2" },
+  });
+  const dir = makeFixture({ name: "f", version: "1.0.0", private: true, dependencies: deps }, lock);
+  const { json } = await runCli(["dedupe", dir, "--format=json"]);
+  const item = json.dedupe.find((d) => d.package === "shared");
+  assert.ok(item);
+  assert.equal(item.status, "NOT_CONVERGIBLE");
+  assert.equal(item.reason, "no-locked-candidate", "区间非空、无锁定候选 —— 不许说成 empty-intersection");
+  assertMusProperties(item);
+});
+
+/** 两个可行目标的最小树：两个请求者都声明 `^2.0.0`，锁定 2.0.0 / 2.1.3 都满足。 */
+function twoTargets() {
+  const deps = { a: "^1.0.0", b: "^1.0.0" };
+  const lock = lockV3(deps, {
+    "node_modules/a": { version: "1.0.0", dependencies: { shared: "^2.0.0" } },
+    "node_modules/a/node_modules/shared": { version: "2.0.0" },
+    "node_modules/b": { version: "1.0.0", dependencies: { shared: "^2.0.0" } },
+    "node_modules/b/node_modules/shared": { version: "2.1.3" },
+  });
+  return makeFixture({ name: "f", version: "1.0.0", private: true, dependencies: deps }, lock);
+}
+
+test("CONVERGIBLE：目标列表必须完整（全部满足全体的锁定版本都在）", async () => {
+  const dir = twoTargets();
+  const { json } = await runCli(["dedupe", dir, "--format=json"]);
+  const item = json.dedupe.find((d) => d.package === "shared");
+  assert.equal(item.status, "CONVERGIBLE");
+  assert.deepEqual(item.targets.map((t) => t.version), ["2.0.0", "2.1.3"], "全部可行目标都要列出");
+});
+
+test("--prefer=latest 只改排序与标注：目标集合不变", async () => {
+  const dir = twoTargets();
+  const plain = await runCli(["dedupe", dir, "--format=json"]);
+  const latest = await runCli(["dedupe", dir, "--format=json", "--prefer=latest"]);
+  const a = plain.json.dedupe.find((d) => d.package === "shared");
+  const b = latest.json.dedupe.find((d) => d.package === "shared");
+  assert.equal(a.status, b.status, "prefer 不得改变状态");
+  assert.deepEqual(
+    a.targets.map((t) => t.version).sort(),
+    b.targets.map((t) => t.version).sort(),
+    "prefer 不得改变可行目标集合",
+  );
+  assert.deepEqual(b.targets.map((t) => t.version), ["2.1.3", "2.0.0"], "latest 只是把顺序倒过来");
+  assert.equal(b.targets[0].preferred, true, "latest 标最高版本为首选");
+  assert.equal(a.targets.some((t) => t.preferred === true), false, "不给 --prefer 时不标注首选");
+});
+
+test("--prefer=min-change 也只改标注：状态与目标集合不变", async () => {
+  const dir = twoTargets();
+  const plain = await runCli(["dedupe", dir, "--format=json"]);
+  const minChange = await runCli(["dedupe", dir, "--format=json", "--prefer=min-change"]);
+  const a = plain.json.dedupe.find((d) => d.package === "shared");
+  const b = minChange.json.dedupe.find((d) => d.package === "shared");
+  assert.equal(a.status, b.status, "prefer 不得改变状态");
+  assert.deepEqual(
+    a.targets.map((t) => t.version).sort(),
+    b.targets.map((t) => t.version).sort(),
+    "prefer 不得改变可行目标集合",
+  );
+  assert.equal(b.targets.filter((t) => t.preferred === true).length, 1, "min-change 只标一个首选");
+  assert.equal(b.targets[0].preferred, true, "min-change 标最小的那个（变更最小）");
+});
+

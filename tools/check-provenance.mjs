@@ -7,10 +7,12 @@
  *      （M1 规则 `R1`–`R8`、M2 kind、M3 状态、M4 kind）；
  *   2. 每个 `fixtures/vectors/*` 目录必须有 `expected.json` 且含 `sources` 字段
  *      （指向 `data/README.md` 的 A 编号或章节），空数组即 FAIL；
- *   3. `data/README.md` 的 §7 数值口径小节必须存在（唯一定义处不能再搬走）。
- *
- * 为什么需要它：`plan/01` D 栏要求"每条语义断言可追溯"。这句话如果没有门，
- * 靠人读永远看不出漏了哪条 —— 这正是 references「交付文档里'覆盖了多少'必须由机器核」。
+ *   3. `data/README.md` 的 §7 数值口径小节必须存在（唯一定义处不能再搬走）；
+ *   4. **反向覆盖（PROV.COVERAGE）**：§1.1 台账的**每条** A 编号都必须被某个向量的
+ *      `sources` 引用，或被列入显式豁免登记（豁免必须带理由 + 活测试锚点）。
+ *      为什么需要：判据 2 只保证"向量的来源非空"，**不保证"台账每条实测都被复核过"**——
+ *      M0 期 12 组向量就漏了 A2/A5/A6/A7（HANDOFF-M0 §三 第 0 条如实登记），
+ *      而当时四条门全绿。"覆盖了多少"必须由机器核（references M6 收尾条）。
  *
  * 退出码：0 全绿 / 1 有 FAIL / 2 用法错误。
  */
@@ -105,7 +107,132 @@ function checkNumbersSection() {
   add("PROV.NUMBERS", ok, ok ? "data/README.md §7 数值口径在位（唯一定义处）" : "data/README.md 缺 §7 数值口径（唯一定义处搬走了？）");
 }
 
-for (const run of [checkSeverityKeys, checkVectorSources, checkNumbersSection]) {
+// ── 4. 反向覆盖：台账每条 A# 都要被引用或有豁免登记 ─────────────────────────
+/**
+ * 豁免登记。**每条必须给理由 + 活测试锚点**（理由不能是"没时间"）。
+ * 有活测试锚点的意思：该行为在 `tests/` 里有真跑的断言，只是没有"产品面"可供向量断言。
+ */
+const A_EXEMPT = {
+  A16: {
+    why: "`includePrerelease` 是**库调用参数**，本项目 CLI 无对应开关（零联网审计不做「放开预发布」这种放宽判据）",
+    test: "tests/semver/interval.test.mjs",
+  },
+  A26: {
+    why: "SARIF 官方 schema 的**离线副本**（$id + sha256）是**报告形态**的实测，不是某个夹具的语义结论 —— 没有向量能「引用」它而不把报告形态伪装成语义断言。校验面在 `tools/check-report-schema.mjs`（真跑官方 schema）与 `tests/report/report.test.mjs`（$id / sha256 / 负例阳性对照）",
+    test: "tests/report/report.test.mjs",
+  },
+};
+
+/** 从 §1.1 表格里抽出 A 编号（只认表格行首格的 `A<n>`）。 */
+function ledgerAssertionIds() {
+  const lines = (read("data/README.md") ?? "").split("\n");
+  const ids = [];
+  let inSection = false;
+  for (const line of lines) {
+    if (/^###\s*1\.1\s/.test(line)) {
+      inSection = true;
+      continue;
+    }
+    if (/^###\s*1\.2\s/.test(line)) {
+      inSection = false;
+      continue;
+    }
+    if (!inSection) continue;
+    const m = /^\|\s*(A\d+)\s*\|/.exec(line);
+    if (m) ids.push(m[1]);
+  }
+  return [...new Set(ids)].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+}
+
+/**
+ * 收集全部夹具 `expected.json` 里出现的 `A<n>` 引用。
+ * 扫描面 = `fixtures/vectors/*` **+ `fixtures/real-tree`**（M4）：真实树也是向量级断言，
+ * 它引用的台账编号同样要管（幽灵锚点 / 覆盖计数都算它）。
+ */
+function vectorsReferencing() {
+  const referenced = new Map(); // A<n> -> [vector...]
+  const note = (text, label) => {
+    for (const m of text.matchAll(/\bA(\d+)\b/g)) {
+      const key = `A${m[1]}`;
+      if (!referenced.has(key)) referenced.set(key, []);
+      if (!referenced.get(key).includes(label)) referenced.get(key).push(label);
+    }
+  };
+
+  const dir = join(ROOT, "fixtures", "vectors");
+  if (existsSync(dir)) {
+    for (const name of readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort()) {
+      const text = read(`fixtures/vectors/${name}/expected.json`);
+      if (text === null) continue;
+      note(text, name);
+    }
+  }
+  const realTree = read("fixtures/real-tree/expected.json");
+  if (realTree !== null) note(realTree, "real-tree");
+
+  return referenced;
+}
+
+function checkAssertionCoverage() {
+  const ids = ledgerAssertionIds();
+  if (ids.length === 0) {
+    add("PROV.COVERAGE", false, "data/README.md §1.1 台账解析出 0 条 A 编号（判据空跑）");
+    return;
+  }
+  const referenced = vectorsReferencing();
+  if (referenced.size === 0) {
+    add("PROV.COVERAGE", false, "没有任何向量引用 A 编号（判据空跑）");
+    return;
+  }
+  const uncovered = [];
+  const exemptHits = [];
+  for (const id of ids) {
+    if (referenced.has(id)) continue;
+    const exemption = A_EXEMPT[id];
+    if (exemption) {
+      if (!exemption.why || !exemption.test) {
+        uncovered.push(`${id} 的豁免登记不完整（必须给 why + test）`);
+        continue;
+      }
+      if (!existsSync(join(ROOT, exemption.test))) {
+        uncovered.push(`${id} 的豁免指向的测试文件不存在: ${exemption.test}`);
+        continue;
+      }
+      exemptHits.push(`${id}(→${exemption.test})`);
+      continue;
+    }
+    uncovered.push(id);
+  }
+  // 豁免登记表里出现"台账里已不存在"的编号 = 僵尸登记，必须清理
+  const zombie = Object.keys(A_EXEMPT).filter((id) => !ids.includes(id));
+
+  // 幽灵锚点：向量引用了台账里**不存在**的 A 编号 = 凭空来源（比"没来源"更隐蔽）
+  const ledgerSet = new Set(ids);
+  const ghosts = [];
+  for (const [id, vectors] of [...referenced.entries()].sort()) {
+    if (!ledgerSet.has(id)) ghosts.push(`${id}(被 ${vectors.join(", ")} 引用)`);
+  }
+
+  const problems = [];
+  if (uncovered.length) {
+    problems.push(`${uncovered.length} 条台账实测既无向量引用也无豁免登记: ${uncovered.join(", ")}`);
+  }
+  if (zombie.length) problems.push(`豁免登记指向台账里不存在的编号（僵尸登记）: ${zombie.join(", ")}`);
+  if (ghosts.length) problems.push(`向量引用了台账里不存在的 A 编号（幽灵锚点）: ${ghosts.join(", ")}`);
+
+  add(
+    "PROV.COVERAGE",
+    problems.length === 0,
+    problems.length
+      ? problems.join("；")
+      : `§1.1 台账 ${ids.length} 条实测：${referenced.size} 条被向量引用 + ${exemptHits.length} 条显式豁免（${exemptHits.join(", ") || "无"}），无遗漏`,
+  );
+}
+
+for (const run of [checkSeverityKeys, checkVectorSources, checkNumbersSection, checkAssertionCoverage]) {
   try {
     run();
   } catch (error) {

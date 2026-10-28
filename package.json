@@ -27,9 +27,10 @@
     "gate:provenance": "node tools/check-provenance.mjs",
     "gate:vectors": "node tools/check-vectors.mjs",
     "gate:workflows": "node tools/check-workflows.mjs",
+    "gate:report": "node tools/check-report-schema.mjs",
     "gate:mutation": "node tools/verify-layout-mutations.mjs",
     "smoke:offline": "node tools/offline-smoke.mjs",
-    "gate:all": "npm run gate:layout && npm run gate:desensitize && npm run gate:scope && npm run gate:provenance && npm run gate:workflows && npm test && npm run smoke:offline"
+    "gate:all": "npm run gate:layout && npm run gate:desensitize && npm run gate:scope && npm run gate:provenance && npm run gate:workflows && npm run gate:vectors && npm run gate:report && npm test && npm run smoke:offline"
   },
   "dependencies": {
     "semver": "7.8.5"

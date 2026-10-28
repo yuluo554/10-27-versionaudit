@@ -61,7 +61,10 @@ export function renderText(report) {
       if (item.minimalConflictSet) {
         lines.push(`         最小冲突集：${item.minimalConflictSet.map((m) => `${m.requester}(${m.range})`).join(" ⊗ ")}`);
       }
-      if (item.degraded) lines.push(`         ⚠ 已降级：${item.reason}`);
+      // 降级原因必须打 `degradeReason`（`requesters > max`，§7.2 的固定口径串）。
+      // 旧实现打的是 `item.reason`——那是**两态 reason**（`empty-intersection` / `no-locked-candidate`），
+      // 于是"降级了"后面跟着一个跟降级无关的词（M5 走查实测）。
+      if (item.degraded) lines.push(`         ⚠ 已降级：${item.degradeReason ?? "degraded"}`);
     }
     lines.push("");
   }

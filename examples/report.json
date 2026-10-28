@@ -43,7 +43,7 @@
       "rawRange": "^0.19.2",
       "expandedRange": ">=0.19.2 <0.20.0-0",
       "severity": "info",
-      "evidence": "validRange(\"^0.19.2\") = \">=0.19.2 <0.20.0-0\"（上界被收窄到同一 minor/patch 内）"
+      "evidence": "validRange(\"^0.19.2\") = \">=0.19.2 <0.20.0-0\"（上界被收窄到 0.x 的小步进内）"
     },
     {
       "kind": "manifest-not-satisfied",

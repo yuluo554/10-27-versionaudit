@@ -4,6 +4,12 @@
   "private": true,
   "dependencies": {
     "ok": "^1.0.0",
-    "empty": ">=1.0.0 <1.0.0"
+    "empty": ">=1.0.0 <1.0.0",
+    "caret-zero-ok": "^0.2.3",
+    "caret-zero-out": "^0.2.3",
+    "one-dot-ok": "1.0",
+    "one-dot-out": "1.0",
+    "two-dot-ok": "0.0",
+    "two-dot-out": "0.0"
   }
 }

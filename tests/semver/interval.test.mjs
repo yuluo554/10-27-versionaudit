@@ -92,6 +92,31 @@ test(T("A16", "includePrerelease 会放开预发布"), () => {
   assert.equal(satisfies("1.5.0-beta", "^1.0.0", { includePrerelease: true }), true);
 });
 
+test(T("A17", "1.x 是有上界的部分版本"), () => {
+  assert.equal(validRange("1.x"), ">=1.0.0 <2.0.0-0");
+  assert.equal(satisfies("1.9.0", "1.x"), true);
+  assert.equal(satisfies("2.0.0", "1.x"), false);
+});
+
+test(T("A18", ">=1.0.0 <=1.0.0 是非空单点"), () => {
+  // M1 复核发现的实现缺陷：lo == hi 被一律判空 → `>=1.0.0 <=1.0.0` 误报 R5。
+  // 判据必须看端点开闭性：≤ 闭、< 开。
+  assert.equal(validRange(">=1.0.0 <=1.0.0"), ">=1.0.0 <=1.0.0");
+  assert.equal(satisfies("1.0.0", ">=1.0.0 <=1.0.0"), true);
+  assert.equal(satisfies("1.0.1", ">=1.0.0 <=1.0.0"), false);
+  assert.equal(rangeIsEmpty(">=1.0.0 <=1.0.0"), false, "闭环单点是非空的");
+  // 开区间同界才是空（A11 的另一侧）
+  assert.equal(rangeIsEmpty(">=1.0.0 <1.0.0"), true);
+  assert.equal(rangeIsEmpty(">1.0.0 <=1.0.0"), true);
+});
+
+test(T("A19", "x / X 等价于 *；两位部分版本不等于裸版本"), () => {
+  assert.equal(validRange("x"), "*");
+  assert.equal(validRange("X"), "*");
+  assert.equal(validRange("1.0"), ">=1.0.0 <1.1.0-0");
+  assert.equal(validRange("0.0"), "<0.1.0-0");
+});
+
 test("区间代数：空分支与单点分支的区别", () => {
   // 精确版本是单点闭区间，非空
   assert.equal(rangeIsEmpty("1.2.3"), false);

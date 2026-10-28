@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "no-upper": ">=1.2.0"
+    "no-upper": ">=1.2.0",
+    "with-upper": "<2.0.0",
+    "upper-and-lower": ">=1.2.0 <2.0.0"
   }
 }

@@ -11,7 +11,7 @@
  */
 
 import { validRange, subset, satisfies, compare } from "../semver/adapter.mjs";
-import { normalizeRange, rangeIsEmpty, intersectRanges } from "../semver/interval.mjs";
+import { normalizeRange, rangeIsEmpty, intersectRanges, INFINITY as INF } from "../semver/interval.mjs";
 import { flattenDeclarations } from "../model/manifest.mjs";
 
 const RULE_META = Object.freeze({
@@ -50,26 +50,35 @@ function checkR2(rawRange, expanded) {
   return null;
 }
 
-/** R3：`^0.x.y` / `^0.0.y` / `~0.x.y` 的语义收窄（以展开结果证明，不看字面）。 */
+/** R3：`^0.x.y` / `^0.0.y` / `~0.x.y` 的语义收窄（以展开结果证明，不看字面）。
+ *
+ * 判据 = raw 以 `^`/`~` 起头、主版本为 0，且展开后的**上界被收窄到 0.x 内的小步进**：
+ *   `hi == [0, m, 0]`（m ≥ 1，minor 步进）或 `hi == [0, 0, p]`（patch 步进）。
+ *
+ * 覆盖全族：`^0.2.3`→`<0.3.0-0`、`^0.0.3`→`<0.0.4-0`、`~0.2.3`→`<0.3.0-0`、
+ * `~0.0.3`→`<0.1.0-0`，以及 **`^0.0` / `~0.0` / `^0.0.x` 一族**——它们的展开
+ * **没有下界**（如 `^0.0` = `<0.1.0-0`，台账 A20）。
+ *
+ * **M2 修**：旧实现直接 `const [maj, min] = b.lo.v` 拆下界，遇到这族"无下界"展开会
+ * 拆一个 `NEG_INF` Symbol → `TypeError: symbol is not iterable`，**整个审计退出码 3**。
+ * 正解 = 只看上界（下界缺省不影响"上界被收窄"这一事实）。
+ * 不收窄的反例：`^1.2.3` / `~1.2.3`（非零主版本）、`^0` / `~0` / `^0.x` / `~0.x`
+ * （上界 `<1.0.0-0`，整个 0.x 都可取，与"0 主版本兼容"的直觉一致）。
+ */
 function checkR3(rawRange, expanded) {
   if (expanded === null) return null;
-  if (!/^(\^|~)/.test(rawRange.trim())) return null;
+  const head = /^([\^~])\s*v?(\d+)/.exec(rawRange.trim());
+  if (!head || Number(head[2]) !== 0) return null;
   const norm = normalizeRange(rawRange);
   if (!norm) return null;
   const shrink = norm.branches.filter((b) => {
-    if (b.hi.v === null || b.hi.v[0] === undefined) return false;
-    const [maj, min] = b.lo.v;
-    if (b.hi.v[0] !== maj) return false; // 上界跨大版本 → 不是 0.x 收窄
-    // ^0.2.3 → <0.3.0；^0.0.3 → <0.0.4
-    const isZeroMajor = maj === 0;
-    if (!isZeroMajor) return false;
-    const narrowMinor = min > 0 && b.hi.v[1] === min + 1 && b.hi.v[2] === 0;
-    const narrowPatch = min === 0 && b.hi.v[1] === 0 && b.hi.v[2] === (b.lo.v[2] ?? 0) + 1;
-    return narrowMinor || narrowPatch;
+    if (b.hi.v === INF || b.hi.v[0] !== 0) return false; // 无上界 / 上界跨出 0.x → 不是收窄
+    const [, min, pat] = b.hi.v;
+    return (min >= 1 && pat === 0) || (min === 0 && pat >= 1);
   });
   if (shrink.length === 0) return null;
   return {
-    evidence: `validRange(${JSON.stringify(rawRange)}) = ${JSON.stringify(expanded)}（上界被收窄到同一 minor/patch 内）`,
+    evidence: `validRange(${JSON.stringify(rawRange)}) = ${JSON.stringify(expanded)}（上界被收窄到 0.x 的小步进内）`,
   };
 }
 

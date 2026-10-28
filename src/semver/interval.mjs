@@ -103,8 +103,10 @@ function comparatorToBounds(comp) {
     case "<=":
       return { lo: { v: NEG_INF, pre: null }, hi: base, exclusiveHi: false };
     case "=":
-      // 精确版本：`1.2.3` 在 npm 里就是锁定（A15），区间退化为单点闭区间
-      return { lo: base, hi: base, exact: true };
+      // 精确版本：`1.2.3` 在 npm 里就是锁定（A15），区间退化为单点**闭**区间。
+      // 返回普通端点形态，交给统一合并逻辑 —— **不设 `exact` 特权字段**：
+      // 那个字段曾是 `branchIsEmpty` 的逃生口，把 `1.0.0 >1.0.0` 这类等界排除形态误判为非空（A21；变异 H7）。
+      return { lo: base, hi: base };
     case "^":
       if (parsed.major > 0) return { lo: base, hi: nextMajor };
       if (parsed.minor > 0) return { lo: base, hi: nextMinor };
@@ -134,39 +136,53 @@ export function normalizeRange(rawRange) {
       const comps = branch.split(/\s+/).filter(Boolean);
       let lo = { v: NEG_INF, pre: null };
       let hi = { v: INF, pre: null };
-      let exact = null;
       let exclusiveLo = false;
       let exclusiveHi = false;
       for (const comp of comps) {
         const b = comparatorToBounds(comp);
-        if (b.exact) {
-          exact = b.lo;
-          lo = b.lo;
-          hi = b.hi;
-          continue;
+        // 精确比较器 = 单点**闭**区间，走与 `>=`/`<=` 相同的合并规则。
+        // **不能无条件覆盖开闭标记**（M2 实测）：`>1.0.0 1.0.0` 里前一条已把下界标为开，
+        // 后一条精确比较器落在同一点上时必须保留"该点被排除"这一事实（等界 → OR）。
+        if (b.lo.v !== NEG_INF) {
+          const cl = cmpBound(b.lo, lo);
+          if (cl > 0) {
+            lo = b.lo;
+            exclusiveLo = Boolean(b.exclusiveLo);
+          } else if (cl === 0) {
+            exclusiveLo = exclusiveLo || Boolean(b.exclusiveLo);
+          }
         }
-        if (b.lo.v !== NEG_INF && cmpBound(b.lo, lo) > 0) {
-          lo = b.lo;
-          exclusiveLo = Boolean(b.exclusiveLo);
-        }
-        if (b.hi.v !== INF && cmpBound(b.hi, hi) < 0) {
-          hi = b.hi;
-          exclusiveHi = Boolean(b.exclusiveHi);
+        if (b.hi.v !== INF) {
+          const ch = cmpBound(b.hi, hi);
+          if (ch < 0) {
+            hi = b.hi;
+            exclusiveHi = Boolean(b.exclusiveHi);
+          } else if (ch === 0) {
+            exclusiveHi = exclusiveHi || Boolean(b.exclusiveHi);
+          }
         }
       }
-      return { lo, hi, exact, exclusiveLo, exclusiveHi, comps };
+      return { lo, hi, exclusiveLo, exclusiveHi, comps };
     }),
   };
 }
 
-/** 分支是否为空（lo > hi，或 lo == hi 但至少一侧是开区间且非精确点）。 */
+/**
+ * 分支是否为空（`lo > hi`，或 `lo == hi` 且**排除端点**）。
+ *
+ * 端点开闭性决定一切（M1 复核补的 A18）：
+ *   `>=1.0.0 <1.0.0` / `>1.0.0 <=1.0.0` → 空（A11 实测永不满足）
+ *   `>=1.0.0 <=1.0.0` → **非空**（单点 1.0.0；实测 satisfies('1.0.0', …) = true）
+ * 曾实现成"`lo == hi` 且非精确点即空"，把后者误报成 R5 空交集。
+ *
+ * **M2 修**：旧式里有一条 `!branch.exact &&` 逃生口——它会在"精确比较器与排除性并存"
+ * 的形态上判错（`1.0.0 >1.0.0` / `1.0.0 <1.0.0` / `>1.0.0 1.0.0` 实测永不满足，
+ * 却因 `exact != null` 被放行）。现在等值点的判空**只看两侧开闭**，与 `exact` 无关。
+ */
 export function branchIsEmpty(branch) {
   const c = cmpBound(branch.lo, branch.hi);
   if (c > 0) return true;
-  if (c === 0 && !branch.exact) {
-    // 单点但不是"精确版本"语义 → 空（如 `>=1.0.0 <1.0.0`，A11 实测永不满足）
-    return true;
-  }
+  if (c === 0) return branch.exclusiveLo === true || branch.exclusiveHi === true;
   return false;
 }
 
@@ -183,8 +199,7 @@ export function intersectBranches(a, b) {
   const loExclusive = cmpBound(a.lo, b.lo) === 0 ? a.exclusiveLo || b.exclusiveLo : cmpBound(a.lo, b.lo) > 0 ? a.exclusiveLo : b.exclusiveLo;
   const hi = cmpBound(a.hi, b.hi) <= 0 ? a.hi : b.hi;
   const hiExclusive = cmpBound(a.hi, b.hi) === 0 ? a.exclusiveHi || b.exclusiveHi : cmpBound(a.hi, b.hi) < 0 ? a.exclusiveHi : b.exclusiveHi;
-  const exact = a.exact && b.exact ? a.exact : null;
-  const merged = { lo, hi, exact, exclusiveLo: loExclusive, exclusiveHi: hiExclusive };
+  const merged = { lo, hi, exclusiveLo: loExclusive, exclusiveHi: hiExclusive };
   return branchIsEmpty(merged) ? null : merged;
 }
 
@@ -198,7 +213,7 @@ export function intersectRanges(ranges) {
   if (invalid >= 0) {
     return { empty: null, branches: [], invalidIndex: invalid, invalidRange: ranges[invalid] };
   }
-  let acc = [{ lo: { v: NEG_INF, pre: null }, hi: { v: INF, pre: null }, exact: null, exclusiveLo: false, exclusiveHi: false }];
+  let acc = [{ lo: { v: NEG_INF, pre: null }, hi: { v: INF, pre: null }, exclusiveLo: false, exclusiveHi: false }];
   for (let i = 0; i < norms.length; i += 1) {
     const next = [];
     for (const cur of acc) {

@@ -1,19 +1,27 @@
 {
   "rule": "R1",
-  "description": "声明范围无上界（>=1.2.0 没有 < 上界）",
+  "description": "声明范围无上界（>=1.2.0 没有 < 上界）；同族但有上界的不得报",
   "mustContain": [
     { "path": "findings[0].rule", "value": "R1" },
     { "path": "findings[0].package", "value": "no-upper" },
     { "path": "findings[0].rawRange", "value": ">=1.2.0" },
     { "path": "findings[0].expandedRange", "value": ">=1.2.0" },
     { "path": "findings[0].severity", "value": "warning" },
-    { "path": "findings[0].evidence", "contains": "无上界" }
+    { "path": "findings[0].evidence", "contains": "无上界" },
+    { "path": "input.declarations", "value": 3 },
+    { "path": "input.packages", "value": 4 }
   ],
   "mustNotContain": [
-    { "path": "findings", "value": "R5" },
-    { "path": "findings", "value": "R6" }
+    { "path": "findings[?rule=R5]", "present": true },
+    { "path": "findings[?rule=R6]", "present": true },
+    { "path": "findings[?package=with-upper]", "present": true },
+    { "path": "findings[?package=upper-and-lower]", "present": true }
   ],
   "exitCode": 0,
   "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
-  "sources": ["data/README.md §1.1 A15（裸版本是精确锁定，故 >=1.2.0 不是精确锁定）", "data/README.md §7.3（R1 默认 warning，不影响退出码）"]
+  "sources": [
+    "data/README.md §1.1 A15（裸版本是精确锁定，故 >=1.2.0 不是精确锁定）",
+    "data/README.md §7.3（R1 默认 warning，不影响退出码）",
+    "plan/03 M1 R1（判据 = 展开结果里存在无 < 上界的比较器）"
+  ]
 }

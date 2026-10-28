@@ -1,14 +1,81 @@
 {
   "rule": "R7",
-  "description": "build metadata 不提供任何额外约束（展开后与去掉 +… 完全相同），默认 info",
+  "description": "build metadata 不提供任何额外约束（展开后与去掉 +… 完全相同），默认 info；同族多形态：精确版 / 范围 + 上界 / 带预发布 / caret / || 分支 —— 五种都报；无 + 的四种（精确、范围、预发布、caret）都不得报",
   "mustContain": [
-    { "path": "findings[?package=with-build].rule", "value": "R7" },
-    { "path": "findings[?package=with-build].severity", "value": "info" },
-    { "path": "findings[?package=with-build].expandedRange", "value": "1.0.0" },
-    { "path": "findings[?package=with-build].evidence", "contains": "build metadata" }
+    {
+      "path": "findings[?package=with-build].rule",
+      "value": "R7"
+    },
+    {
+      "path": "findings[?package=with-build].severity",
+      "value": "info"
+    },
+    {
+      "path": "findings[?package=with-build].expandedRange",
+      "value": "1.0.0"
+    },
+    {
+      "path": "findings[?package=with-build].evidence",
+      "contains": "build metadata"
+    },
+    {
+      "path": "findings[?package=with-build-range].rule",
+      "value": "R7"
+    },
+    {
+      "path": "findings[?package=with-build-range].expandedRange",
+      "value": ">=1.2.0 <2.0.0"
+    },
+    {
+      "path": "findings[?package=with-build-pre].rule",
+      "value": "R7"
+    },
+    {
+      "path": "findings[?package=with-build-pre].expandedRange",
+      "value": "1.0.0-rc.1"
+    },
+    {
+      "path": "findings[?package=with-build-caret].rule",
+      "value": "R7"
+    },
+    {
+      "path": "findings[?package=with-build-branch].rule",
+      "value": "R7"
+    },
+    {
+      "path": "input.declarations",
+      "value": 9
+    },
+    {
+      "path": "input.packages",
+      "value": 10
+    }
   ],
-  "mustNotContain": [{ "path": "findings[?package=plain].rule", "value": "R7" }],
+  "mustNotContain": [
+    {
+      "path": "findings[?package=plain].rule",
+      "value": "R7"
+    },
+    {
+      "path": "findings[?package=range-no-build].rule",
+      "value": "R7"
+    },
+    {
+      "path": "findings[?package=pre-no-build].rule",
+      "value": "R7"
+    },
+    {
+      "path": "findings[?package=caret-no-build].rule",
+      "value": "R7"
+    }
+  ],
   "exitCode": 0,
-  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
-  "sources": ["data/README.md §1.1 A10（build metadata 不参与比较；1.0.0+build.1 与 1.0.0 互相 satisfy）"]
+  "implementationVersions": {
+    "semver": "7.8.5",
+    "node": ">=20"
+  },
+  "sources": [
+    "data/README.md §1.1 A10（build metadata 不参与比较；1.0.0+build.1 与 1.0.0 互相 satisfy）",
+    "plan/03 M1 R7（范围字符串含 +，且去掉 +… 后 validRange 不变才报）"
+  ]
 }

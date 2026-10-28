@@ -1,0 +1,122 @@
+{
+  "rule": "M2",
+  "description": "lockfileVersion 2（packages + dependencies 双视图必须自洽）：一份**真实 npm 形态**的锁——根 optionalDependencies 与 manifest 一致（A22）、file: 依赖的树外条目 ../lib 与 link 条目（A24）、未安装的 optional 占位条目无 version（A23）。A22/A23/A24 三条都在这里被钉住",
+  "mustContain": [
+    {
+      "path": "input.lockfileVersion",
+      "value": 2
+    },
+    {
+      "path": "input.format",
+      "value": "v2"
+    },
+    {
+      "path": "input.declarations",
+      "value": 4
+    },
+    {
+      "path": "input.packages",
+      "value": 7
+    },
+    {
+      "path": "findings[?kind=lock-extra-undeclared&dependency=stray].lockedVersion",
+      "value": "9.9.9"
+    },
+    {
+      "path": "findings[?kind=lock-extra-undeclared&dependency=stray].severity",
+      "value": "warning"
+    },
+    {
+      "path": "findings[?kind=lock-extra-undeclared&dependency=stray].declaredRange",
+      "value": null
+    },
+    {
+      "path": "findings[?kind=manifest-changed-unsynced&dependency=a].declaredRange",
+      "value": "^2.0.0"
+    },
+    {
+      "path": "findings[?kind=manifest-changed-unsynced&dependency=a].lockedVersion",
+      "value": "^1.0.0"
+    },
+    {
+      "path": "findings[?kind=manifest-changed-unsynced&dependency=a].requesterPath",
+      "deepEqual": ["<root>"]
+    },
+    {
+      "path": "findings[?kind=manifest-changed-unsynced&dependency=a].severity",
+      "value": "error"
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied&dependency=a].lockedVersion",
+      "value": "1.5.0"
+    },
+    {
+      "path": "degraded[0]",
+      "contains": "opt"
+    },
+    {
+      "path": "summary.error",
+      "value": 2
+    },
+    {
+      "path": "summary.warning",
+      "value": 1
+    }
+  ],
+  "mustNotContain": [
+    {
+      "path": "findings[?kind=manifest-changed-unsynced&dependency=opt]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=manifest-changed-unsynced&dependency=b]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=manifest-changed-unsynced&dependency=lib]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=missing-from-lock&dependency=opt]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied&dependency=opt]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied&dependency=lib]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=lock-extra-undeclared&dependency=..]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=lock-extra-undeclared&dependency=lib]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=lock-extra-undeclared&dependency=a]",
+      "present": true
+    },
+    {
+      "path": "findings[?kind=manifest-not-satisfied&dependency=b]",
+      "present": true
+    }
+  ],
+  "exitCode": 1,
+  "implementationVersions": {
+    "semver": "7.8.5",
+    "node": ">=20"
+  },
+  "sources": [
+    "data/README.md §7.3（manifest-changed-unsynced 默认 error、lock-extra-undeclared 默认 warning）",
+    "data/README.md §1.1 A2（satisfies('0.2.9','^0.2.3')=true / satisfies('0.3.0','^0.2.3')=false）",
+    "data/README.md §1.1 A22（真实 npm 根条目四类键各写各的：optional 不并入 dependencies，故 opt 不得误报 manifest-changed-unsynced）",
+    "data/README.md §1.1 A23（锁条目可无 version：link 条目与未安装 optional 占位；satisfies(null,·)=false 故不得报 manifest-not-satisfied，须走 degraded）",
+    "data/README.md §1.1 A24（真实 file: 锁含树外条目 ../lib 与 link 条目；两者不得被当作 lock-extra-undeclared）",
+    "plan/03 M2（四类 kind 判据；lock-extra-undeclared 基于声明图可达性；无版本条目降级）",
+    "plan/01 §3.2（lock-extra-undeclared 与 npm 的 extraneous 概念区分：基于声明图，不依赖 node_modules）"
+  ]
+}

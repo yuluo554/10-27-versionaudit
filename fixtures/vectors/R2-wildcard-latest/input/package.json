@@ -4,6 +4,9 @@
   "private": true,
   "dependencies": {
     "wild": "*",
-    "tagged": "latest"
+    "tagged": "latest",
+    "x-range": "x",
+    "empty-range": "",
+    "partial-x": "1.x"
   }
 }

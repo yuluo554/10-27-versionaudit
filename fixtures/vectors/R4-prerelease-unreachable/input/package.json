@@ -5,6 +5,12 @@
   "dependencies": {
     "pre-unreachable": "^1.0.0",
     "pre-reachable": "^1.2.3-beta",
-    "pre-off-target": "^1.0.0"
+    "pre-off-target": "^1.0.0",
+    "pre-tilde-unreachable": "~1.2.3",
+    "pre-tilde-reachable": "~1.2.3-beta",
+    "pre-exact-reachable": "1.2.3-beta",
+    "pre-base-reachable": "^1.2.3-beta",
+    "pre-lower-base-unreachable": "^1.0.0",
+    "pre-plain-release": "^1.2.3-beta"
   }
 }

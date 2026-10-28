@@ -1,0 +1,9 @@
+{
+  "name": "fixture-m3-v1",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "send": "^0.19.2",
+    "ghost": "^1.0.0"
+  }
+}

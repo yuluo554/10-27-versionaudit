@@ -61,7 +61,9 @@ test("optional 依赖缺失不算 missing-from-lock", async () => {
     dependencies: {},
     optionalDependencies: { "opt-dep": "^1.0.0" },
   };
-  const lock = lockV3({ "opt-dep": "^1.0.0" }, {});
+  // 真实 npm 把根 optional 声明写在 `packages[""].optionalDependencies`（台账 A22），
+  // 不是写进 `dependencies`。旧夹具按"并进 dependencies"构造，那形态 npm 从不产生。
+  const lock = lockV3({}, {}, { optionalDependencies: { "opt-dep": "^1.0.0" } });
   const dir = makeFixture(manifest, lock);
   const { code } = await runCli(["lock-manifest", dir]);
   assert.equal(code, 0, "optional 缺失不应报错");

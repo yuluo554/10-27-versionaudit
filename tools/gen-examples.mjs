@@ -19,6 +19,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "../src/cli/args.mjs";
 import { run } from "../src/cli/main.mjs";
+import { validate } from "../src/report/json-schema.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE = join(ROOT, "fixtures", "vectors", "M2-lock-manifest", "input");
@@ -75,6 +76,18 @@ function selfCheck(outputs) {
   if (!driver?.name || !driver?.version || !driver?.informationUri) {
     throw new Error("自检失败：SARIF driver 缺必填字段");
   }
+  // ⑤ SARIF 必须过官方 schema（离线副本）。只做上面几条字段断言属于"手写合规"——
+  //    样例是**冻结产物**，它漂了没人读，所以这里把它钉在真校验器上。
+  const schemaPath = join(ROOT, "schema", "sarif-2.1.0.json");
+  if (!existsSync(schemaPath)) throw new Error("自检失败：缺 schema/sarif-2.1.0.json（官方 schema 离线副本）");
+  const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
+  const schemaErrors = validate(s, schema);
+  if (schemaErrors.length) {
+    throw new Error(`自检失败：SARIF 未过官方 schema：${schemaErrors.slice(0, 3).join("；")}`);
+  }
+  // ⑥ ruleId 不得是字面量 "undefined"（M2 finding 只有 kind；schema 抓不到这个字符串）
+  const bogus = (s.runs[0].results ?? []).filter((r) => !r.ruleId || r.ruleId === "undefined");
+  if (bogus.length) throw new Error(`自检失败：SARIF 有 ${bogus.length} 条 ruleId 是 undefined`);
 
   // ④ 行尾必须是 LF（Windows 文本流会把 \n 翻成 \r\n）
   for (const [name, content] of Object.entries(outputs)) {

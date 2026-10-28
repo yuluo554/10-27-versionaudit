@@ -1,21 +1,31 @@
 {
   "rule": "R2",
-  "description": "* 是宽范围；latest 必须判为「非 semver 范围」（notARange），不是宽范围",
+  "description": "* / x / 空串 是宽范围；latest 必须判为「非 semver 范围」（notARange）；1.x 有上界，同族但不该报",
   "mustContain": [
     { "path": "findings[?package=wild].rule", "value": "R2" },
     { "path": "findings[?package=wild].expandedRange", "value": "*" },
+    { "path": "findings[?package=x-range].rule", "value": "R2" },
+    { "path": "findings[?package=x-range].expandedRange", "value": "*" },
+    { "path": "findings[?package=empty-range].rule", "value": "R2" },
+    { "path": "findings[?package=empty-range].expandedRange", "value": "*" },
     { "path": "findings[?package=tagged].rule", "value": "R2" },
     { "path": "findings[?package=tagged].expandedRange", "value": null },
-    { "path": "findings[?package=tagged].notARange", "value": true }
+    { "path": "findings[?package=tagged].notARange", "value": true },
+    { "path": "input.declarations", "value": 5 },
+    { "path": "input.packages", "value": 6 }
   ],
   "mustNotContain": [
     { "path": "findings[?package=wild].notARange", "value": true },
-    { "path": "findings[?package=tagged].rule", "value": "R1" }
+    { "path": "findings[?package=tagged].rule", "value": "R1" },
+    { "path": "findings[?package=partial-x&rule=R2]", "present": true }
   ],
   "exitCode": 0,
   "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
   "sources": [
     "data/README.md §1.1 A13（validRange('latest') = null → 是 dist-tag，不是范围）",
-    "data/README.md §1.1 A14（* 与空串等价，validRange 均为 '*'）"
+    "data/README.md §1.1 A14（* 与空串等价，validRange 均为 '*'）",
+    "data/README.md §1.1 A17（1.x = '>=1.0.0 <2.0.0-0'，有上界 → 不属「无任何约束」档）",
+    "data/README.md §1.1 A19（x / X 与 * 等价）",
+    "docs/limitations.md §5.2（本向量的 `*` / `latest` / `x` 是**被测对象本身**：固定掉等于删掉 R2 的唯一正例。安全扫描器的浮动版本告警在此处为已知误报——依据是「夹具卫生」五条判据证明夹具不会被安装，配变异组 V1–V3、H4–H5）"
   ]
 }

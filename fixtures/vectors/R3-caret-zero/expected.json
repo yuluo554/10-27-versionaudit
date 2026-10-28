@@ -1,19 +1,118 @@
 {
   "rule": "R3",
-  "description": "^0.2.3 收窄到 <0.3.0；^0.0.3 只等于 0.0.3；^1.2.3 不算收窄",
+  "description": "^0.2.3 收窄到 <0.3.0；^0.0.3 只等于 0.0.3；~0.2.3 同样收窄；**^0.0 / ~0.0 / ^0.0.x 一族展开无下界也必须报（M2 崩溃修复）**；^1.2.3 / ~1.2.3 / ^0 / ~0 / ^0.x / ~0.x 不算收窄",
   "mustContain": [
-    { "path": "findings[?package=caret-zero-minor].rule", "value": "R3" },
-    { "path": "findings[?package=caret-zero-minor].expandedRange", "value": ">=0.2.3 <0.3.0-0" },
-    { "path": "findings[?package=caret-zero-patch].rule", "value": "R3" },
-    { "path": "findings[?package=caret-zero-patch].expandedRange", "value": ">=0.0.3 <0.0.4-0" },
-    { "path": "findings[?package=caret-zero-minor].severity", "value": "info" }
+    {
+      "path": "findings[?package=caret-zero-minor].rule",
+      "value": "R3"
+    },
+    {
+      "path": "findings[?package=caret-zero-minor].expandedRange",
+      "value": ">=0.2.3 <0.3.0-0"
+    },
+    {
+      "path": "findings[?package=caret-zero-patch].rule",
+      "value": "R3"
+    },
+    {
+      "path": "findings[?package=caret-zero-patch].expandedRange",
+      "value": ">=0.0.3 <0.0.4-0"
+    },
+    {
+      "path": "findings[?package=caret-zero-minor].severity",
+      "value": "info"
+    },
+    {
+      "path": "findings[?package=tilde-zero].rule",
+      "value": "R3"
+    },
+    {
+      "path": "findings[?package=tilde-zero].expandedRange",
+      "value": ">=0.2.3 <0.3.0-0"
+    },
+    {
+      "path": "findings[?package=caret-zero-nobound].rule",
+      "value": "R3"
+    },
+    {
+      "path": "findings[?package=caret-zero-nobound].expandedRange",
+      "value": "<0.1.0-0"
+    },
+    {
+      "path": "findings[?package=caret-zero-triple].expandedRange",
+      "value": "<0.0.1-0"
+    },
+    {
+      "path": "findings[?package=tilde-zero-triple].rule",
+      "value": "R3"
+    },
+    {
+      "path": "findings[?package=tilde-zero-triple].expandedRange",
+      "value": "<0.1.0-0"
+    },
+    {
+      "path": "findings[?package=caret-zero-x].rule",
+      "value": "R3"
+    },
+    {
+      "path": "findings[?package=caret-zero-x].expandedRange",
+      "value": "<0.1.0-0"
+    },
+    {
+      "path": "findings[?package=tilde-zero-patch].rule",
+      "value": "R3"
+    },
+    {
+      "path": "findings[?package=tilde-zero-patch].expandedRange",
+      "value": ">=0.0.3 <0.1.0-0"
+    },
+    {
+      "path": "input.declarations",
+      "value": 14
+    },
+    {
+      "path": "input.packages",
+      "value": 15
+    }
   ],
-  "mustNotContain": [{ "path": "findings[?package=caret-normal].rule", "value": "R3" }],
+  "mustNotContain": [
+    {
+      "path": "findings[?package=caret-normal].rule",
+      "value": "R3"
+    },
+    {
+      "path": "findings[?package=tilde-normal].rule",
+      "value": "R3"
+    },
+    {
+      "path": "findings[?package=caret-zero-major&rule=R3]",
+      "present": true
+    },
+    {
+      "path": "findings[?package=tilde-zero-major&rule=R3]",
+      "present": true
+    },
+    {
+      "path": "findings[?package=caret-zero-majorx&rule=R3]",
+      "present": true
+    },
+    {
+      "path": "findings[?package=tilde-zero-majorx&rule=R3]",
+      "present": true
+    }
+  ],
   "exitCode": 0,
-  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "implementationVersions": {
+    "semver": "7.8.5",
+    "node": ">=20"
+  },
   "sources": [
     "data/README.md §1.1 A1（^0.2.3 = >=0.2.3 <0.3.0-0）",
+    "data/README.md §1.1 A2（satisfies('0.2.9','^0.2.3')=true / satisfies('0.3.0','^0.2.3')=false）",
     "data/README.md §1.1 A3（^0.0.3 = >=0.0.3 <0.0.4-0）",
-    "data/README.md §1.1 A4（satisfies('0.0.4','^0.0.3') = false）"
+    "data/README.md §1.1 A4（satisfies('0.0.4','^0.0.3') = false）",
+    "data/README.md §1.1 A5（~0.2.3 = >=0.2.3 <0.3.0-0）",
+    "data/README.md §1.1 A20（^0.0 / ~0.0 / ^0.0.x 一族展开无下界；M2 修复的崩溃族）",
+    "plan/03 M1 R3（判据 = 上界被收窄到 0.x 的小步进内）"
   ]
 }

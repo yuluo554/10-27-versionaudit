@@ -2,16 +2,50 @@
   "rule": "M4",
   "description": "peer 冲突必须给最小请求者集（冲突双方），且 intersects=false 有证明",
   "mustContain": [
-    { "path": "conflicts[?package=react].kind", "value": "peer-conflict" },
-    { "path": "conflicts[?package=react].lockedVersion", "value": "18.2.0" },
-    { "path": "conflicts[?package=react].conflictProof.intersects", "value": false },
-    { "path": "conflicts[?package=react].minimalSet[0].range", "value": "^17.0.0" },
-    { "path": "conflicts[?package=react].minimalSet[1].range", "value": "^18.0.0" },
-    { "path": "conflicts[?package=react].severity", "value": "error" }
+    {
+      "path": "conflicts[?package=react].kind",
+      "value": "peer-conflict"
+    },
+    {
+      "path": "conflicts[?package=react].lockedVersion",
+      "value": "18.2.0"
+    },
+    {
+      "path": "conflicts[?package=react].conflictProof.intersects",
+      "value": false
+    },
+    {
+      "path": "conflicts[?package=react].minimalSet[0].range",
+      "value": "^17.0.0"
+    },
+    {
+      "path": "conflicts[?package=react].minimalSet[1].range",
+      "value": "^18.0.0"
+    },
+    {
+      "path": "conflicts[?package=react].severity",
+      "value": "error"
+    },
+    {
+      "path": "input.declarations",
+      "value": 2
+    },
+    {
+      "path": "input.packages",
+      "value": 3
+    }
   ],
-  "mustNotContain": [{ "path": "conflicts[?package=react].degraded", "value": true }],
+  "mustNotContain": [
+    {
+      "path": "conflicts[?package=react].degraded",
+      "value": true
+    }
+  ],
   "exitCode": 1,
-  "implementationVersions": { "semver": "7.8.5", "node": ">=20" },
+  "implementationVersions": {
+    "semver": "7.8.5",
+    "node": ">=20"
+  },
   "sources": [
     "data/README.md §3.5（peer 场景实测：npm ls 报 UNMET DEPENDENCY / missing，退出码 1，但不给最小冲突集）",
     "data/README.md §1.1 A12（intersects('^17.0.0','^18.0.0') = false）",

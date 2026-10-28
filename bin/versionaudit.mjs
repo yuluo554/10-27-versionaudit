@@ -31,6 +31,11 @@ async function main(argv) {
     // 输入错误（3）与内部不一致（4）走各自的码；其余按内部错误处理
     const code = typeof error.exitCode === "number" ? error.exitCode : EXIT.INPUT;
     process.stderr.write(`${error.name ?? "Error"}: ${error.message}\n`);
+    // `detail` 是**可行动的那一半**（支持面 / 结构混用的处置建议 / JSON 解析器原文）。
+    // 只打 message 会让"不支持的 lockfileVersion 9" 这种报文停在"说了是什么、没说怎么办"。
+    if (typeof error.detail === "string" && error.detail.length > 0) {
+      process.stderr.write(`  ${error.detail}\n`);
+    }
     if (process.env.VERSIONAUDIT_DEBUG === "1" && error.stack) {
       process.stderr.write(`${error.stack}\n`);
     }
