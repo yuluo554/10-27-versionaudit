@@ -145,10 +145,15 @@ npm install && npx versionaudit audit fixtures/real-tree/input
 node tools/check-sprint-layout.mjs   # 布局门（方法论装订）
 node tools/check-desensitized.mjs    # 脱敏门
 node tools/check-report-schema.mjs   # 报告门（SARIF schema / 三格式一致 / --out 原子写）
-npm test                             # node:test 全量（192 条）
+npm test                             # node:test 全量（196 条；走 tools/run-tests.mjs）
 npm run gate:all                     # 全部门 + 测试 + 离线冒烟
-node tools/verify-layout-mutations.mjs   # 门的自证（52 组变异，每组都必须变红）
+node tools/verify-layout-mutations.mjs   # 门的自证（53 组变异，每组都必须变红）
 ```
+
+> `npm test` 走 `tools/run-tests.mjs` 而不是 `node --test "<glob>"`：**glob 形态是 Node 21 才加的**，
+> Node 20 上会 `Could not find …`；而**目录形态在 Node 22+ 已失效**。两种写法各在一个主版本上崩，
+> 所以 runner 自己枚举文件再交给 `node --test`（Node 20/22/24 实测一致）。
+> 空匹配或"零个文件被执行"一律退出非 0 —— 空跑不算通过。
 
 ## 边界（节选，全文见 `docs/limitations.md`）
 

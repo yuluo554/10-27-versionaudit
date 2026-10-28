@@ -48,24 +48,49 @@
 |---|---|---|
 | 版本 | `node bin/versionaudit.mjs --version` | `versionaudit 1.0.0` |
 | 七门 | 布局 / 脱敏 / 范围 / 溯源 / workflow / 向量 / 报告 | **7 / 7 全绿**（无 `.git` 树里也成立） |
-| 测试 | `npm test` | **192 通过 / 0 失败** |
+| 测试 | `npm test` | **196 通过 / 0 失败**（192 + 4 条 runner 守门） |
 | 变异自证 | `node tools/verify-layout-mutations.mjs` | **52 组全部符合预期**（应红 50 / 阴性对照 1 / 跳过 1，跳过组的理由串已在输出里） |
 | 零联网 | `node tools/offline-smoke.mjs` | 钩住 12 个入口 / 6 条命令 / **网络尝试 0 次** |
 | 冻结样例 | `node tools/gen-examples.mjs --check` | 2 份逐字节一致（含官方 schema 校验） |
 | README 命令逐条 | `--help` / `doctor` / `range-lint` / `lock-manifest` / `dedupe` / `conflict` / `audit` / `audit --format=sarif --out` | 退出码 `0 / 0 / 1 / 1 / 1 / 1 / 1 / 1` —— **全部符合 README 的退出码语义**（1 = 存在 error 级问题，不是失败） |
 
 **为什么必须在无 `.git` 的导出树里跑**：源码包不含 `.git`，凡判据依赖 git 元数据的门会在用户手里崩。
-本轮实测七门与 192 条测试在导出树里全绿，说明没有这类依赖（布局门开头的注释即为此写的：判据只落仓库内文件）。
+本轮实测七门与 196 条测试在导出树里全绿，说明没有这类依赖（布局门开头的注释即为此写的：判据只落仓库内文件）。
 
 ### 1.5 已知未验证项（tag 前如实留 ⬜）
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| CI 实跑 | ⬜ 待首推 | 本机无 Docker、也不走 Actions 的容器模型，`offline` job 的 `docker run --network none` 形态**只能靠首推证明** |
-| 跨 Node 主版本矩阵 | ⬜ 待首推 | CI 配了 20/22/24；本机只有 v24.15.0 |
+| CI 实跑 | ✅ 已首推实测（`gates` / `test(22)` / `test(24)` / `offline` 绿；`test(20)` 曾红） | 首推 run **40635987184**。**`test (20)` 红是本轮唯一的缺陷**，根因见下节：Node 20 不认 `node --test "<glob>"`。修复后三格复跑全绿，run id 记在 `§二` |
+| 跨 Node 主版本矩阵 | ✅ 已实测 20 / 22 / 24 三格 | **本机 `npx node@20` 复现了同一红**（`Could not find '…tests/**/*.test.mjs'`），修复后 196 条在两代上有相同结果；没有"只在本机绿"的残留 |
 | GitHub Release 产物 | ⬜ 待 tag | 附件与 `SHA256SUMS` 只能在 tag 之后产生 |
 | ERESOLVE 报文形态 | ⬜ 未实测 | 只引文档（`data/README.md` §3.5），不进判据 |
 | 其他生态（yarn/uv/go/pipdeptree/poetry） | ⬜ 未实测 | `data/README.md` §8 规定补测后方可进向量 |
+
+### 1.6 首推实测缺陷（本轮修复，留痕）
+
+**签名**：`test (20)` 红，日志原文 `Could not find '<repo>/tests/**/*.test.mjs'`；其余 `gates` /
+`test (22)` / `test (24)` / `offline` 全绿，本机 node 24 全绿。
+
+**根因**：`node --test` 的 **glob 形态是 Node 21 才加的**能力。`package.json` 的
+`test` 脚本写成 `node --test "tests/**/*.test.mjs"`，在 Node 20 上被当成**字面文件名**，直接退出 1。
+
+**为什么前五棒没抓到**：本机只有 node v24.15.0（`plan/05` 早就把"跨 Node 主版本矩阵"登记为 ⬜）。
+这正是"本地等价校验 ≠ CI"的教科书样本——**判据没错，跑判据的解释器不对**。
+
+**更坏的连带**：`test (20)` 只红在 `npm test` 一步；若只把 glob 换成目录形态（`node --test tests/vectors`），
+在 Node 22+ 会**恒红**（目录被当成测试文件）。**两种写法各在一个主版本上崩**，所以修法不能二选一。
+
+**修法**：新增 `tools/run-tests.mjs` —— 自己枚举 `tests/**/*.test.mjs`，再把**显式文件列表**交给
+`node --test`（这条通路在 18/20/22/24 上都成立）。三条配套判据：
+① 空匹配退出 2（**空跑不算通过**）；② 剥掉继承的 `NODE_TEST_CONTEXT`（否则 node:test 会把子进程
+判成递归调用、`skipping running files` **却退出 0**）；③ 守门测试用**树外哨兵文件**证明"真被执行过"，
+不靠 stdout（runner 对子进程用 `stdio: inherit`，父进程捕获不到）。变异组 **H27** 钉住 ①。
+
+**顺带堵上的假门**：变异门里 `npm-test:` 组原来的"预期红"建立在"命令退出非 0"上——**在 Node 20 上
+glob 失败恒非 0，于是所有这类组都会平凡"变红"（假绿）**。现在每组先跑一次**未变异的基线**，
+基线非 0 直接记 `error`、不静默通过。
+
 
 ## 二、tag 后追加
 
@@ -100,7 +125,7 @@ git diff --name-only v1.0.0..HEAD | grep -vE '^(plan/|README\.md|AGENTS\.md)'   
 |---|---|---|---|
 | 1 | 发布物本体复核（真下载 + 中立目录） | 待首推 | tag 后从 Release 真下载 → `sha256sum -c` → 解包树 vs `git archive v1.0.0` 共有文件逐字节比 |
 | 2 | 名字占用核对在建仓之前 | 已实现 | `§一 1.2`（三条实测 + 未占用结论） |
-| 3 | 入仓工具在无 `.git` 树里也要能跑 | 已实现 | `§一 1.4`：`git archive` 导出树（129 文件 / 无 `.git`）里七门 + 192 测试 + 52 变异全绿 |
+| 3 | 入仓工具在无 `.git` 树里也要能跑 | 已实现 | `§一 1.4`：`git archive` 导出树（129 文件 / 无 `.git`）里七门 + 196 测试 + 53 变异全绿 |
 | 4 | 无网络 job 用嵌套 `docker run --network none` | 已实现（形态）| `.github/workflows/ci.yml` 的 `offline` job 是普通 runner + 嵌套 `docker run`，**不用** `container.options: --network none`（后者与 Actions 的 job 容器模型互斥）；实跑待首推。**本机无 docker**（`docker --version` → `command not found`），这一条**结构上无法在本机证明**，只有远端可证 |
 | 5 | 首推配置面（`src` 布局 / 编码 / 零依赖断言） | 不适用 + 理由 | 本项目无 `src` 布局导入问题（`bin/` 直接 import 相对路径）、无 Python 控制台编码面、`semver` 是唯一运行时依赖且由 `package-lock.json` 钉死；Node 侧对应的"配置面"风险是 `npm install` 失败，已由 `offline` job 的构建期安装覆盖 |
 | 6 | 发布包实测 = README 每条命令在解包树里真敲 | 已实现 | `§一 1.4` 末行：8 条命令逐条实测，退出码与 README 语义逐条对上 |
@@ -109,7 +134,7 @@ git diff --name-only v1.0.0..HEAD | grep -vE '^(plan/|README\.md|AGENTS\.md)'   
 | 9 | tag 树内留档 vs tag 自身事实（自指） | 已实现 | 本文件两栏结构本身即处置：`§二` 是占位骨架，字面值走 tag 后纯文档提交 |
 | 10 | 附件与 tag 树逐字节同源 | 已实现（判据）+ 待首推（实跑）| CI 用 `git archive "${GITHUB_REF_NAME}"` 生成附件（不从工作树打包）；复验：解包树 vs `git archive v1.0.0` 共有文件逐字节 + 两侧独有集合逐项点名。**不用 `diff -r` 零差异**（两棵树不同构：GitHub 包多一层容器目录） |
 | 11 | 内容寻址随包数据的行尾归一 | 不适用 + 理由 | 本项目的冻结产物（`examples/`、`fixtures/**/expected.json`）靠**逐字节比对**守，不靠摘要；`.gitattributes` 已把 `* text=auto eol=lf` 与 `examples/*.json`/`expected.json`/`package-lock.json` 钉成 LF，Windows 检出不会把 CRLF 带进产物 |
-| 12 | 源码包要自足 | 已实现 | `§一 1.4`：导出树里 `npm install` + 七门 + 192 测试全绿；`files` 白名单不含 `fixtures/`（`plan/06` D10）但那是 **npm 包**口径，源码包是全树 |
+| 12 | 源码包要自足 | 已实现 | `§一 1.4`：导出树里 `npm install` + 七门 + 196 测试全绿；`files` 白名单不含 `fixtures/`（`plan/06` D10）但那是 **npm 包**口径，源码包是全树 |
 | 13 | 构建排在交付面定稿之后 | 已实现 | 顺序实测为：定版（版本三处 + 样例重生成）→ 提交 → 干净树预检 → 才打 tag。无构建步骤，`git archive` 直接取 tag 树 |
 | 14 | README 提到的附件名必须真在 Release 里 | 已实现（写法）+ 待首推（核对） | README「下载即用」写的名字 = `versionaudit-v1.0.0.tar.gz` / `SHA256SUMS`，与 CI 产出路径一致；tag 后按 `gh release view --json assets` 核对 |
 | 15 | 对外样例产物在中立目录生成 | 已实现 | 样例只含**仓库相对路径**（`fixtures/vectors/M2-lock-manifest/input`），`gen-examples` 自检第 ② 条断言无盘符绝对路径、第 ① 条断言无时间戳 |

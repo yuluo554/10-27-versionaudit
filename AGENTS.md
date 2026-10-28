@@ -19,6 +19,9 @@ node tools/check-report-schema.mjs     # 报告门（SARIF 过官方 schema / �
 - 接手对话（无 HANDOFF）：先读 `plan/00`、`plan/05`、`plan/06` 与各 HANDOFF，重建
   "当前状态 + K 口径清单"再动手。
 - **门不存在 = 本项目没装订** → 先补装订，再做别的。
+- **跑测试只用 `npm test`**（转发 `tools/run-tests.mjs`）：`node --test "<glob>"` 是 Node 21+
+  才有的能力（Node 20 上 `Could not find …`），而 `node --test <目录>` 在 Node 22+ 已失效。
+  两种写法各在一个主版本上崩，见 §断言纪律 4。
 
 ## 强制布局（布局门逐条断言，改动前先看这里）
 
@@ -49,9 +52,13 @@ for (const k of done) {          // done = 已 ✅ 的里程碑
 ## 布局门的变异验证
 
 门本身也要被证伪：`node tools/verify-layout-mutations.mjs` 逐组改坏仓库副本再复跑，
-**任何一组不变红 = 门有假判据**。收尾棒必须全组通过（含阴性对照）。当前 **52 组**：
-14 组布局门（L*）+ 8 组向量门/夹具卫生门（V* / H4–H5）+ 6 组溯源覆盖门/报告门（P*）+ 24 组断言纪律（H1–H3、H6–H26），
+**任何一组不变红 = 门有假判据**。收尾棒必须全组通过（含阴性对照）。当前 **53 组**：
+14 组布局门（L*）+ 8 组向量门/夹具卫生门（V* / H4–H5）+ 6 组溯源覆盖门/报告门（P*）+ 25 组断言纪律（H1–H3、H6–H27），
 全部在临时副本里跑，不碰工作区。
+
+**`npm-test:` 组必须先过"基线预检"**（M6 首推实测）：这类组用变异让测试变红，但如果
+**未变异时命令本来就没跑起来**（如 Node 20 不认 glob），任何变异都会"变红"——那什么都没证明。
+现在先在未变异副本上跑一次，`exit !== 0` 直接把这组记 `error`，不静默通过。
 
 **M2 新增 3 组（H6–H8）对应两条实测缺陷 + 一条新判据**：H6 把 `checkR3` 改回"拆下界"
 （`^0.0` 一族崩溃，退出码 3）；H7 把 `exact` 逃生口整套加回（R5 漏判 `1.0.0 <1.0.0`）；
@@ -87,9 +94,18 @@ P6 换掉 schema 副本的 `$id`（身份判据）。四条缺陷的留痕见 `d
 **M5 的假门教训**：三格式一致性判据的第一版用被测的 `collectEntries()` 求期望值，
 H24 变异**假绿**（两侧同时少了同样的东西）—— 期望值必须**独立枚举**。
 
+**M6 新增 1 组（H27）对应首推实测缺陷（本机 node 24 全绿、CI `test (20)` 红）**：
+`node --test "<glob>"` 的 glob 支持是 **Node 21** 才加的（Node 20 上 `Could not find …` 退出 1），
+而 `node --test <目录>` 在 **Node 22+** 已失效（目录被当成测试文件，`✖ … 'test failed'`）。
+两种写法各在一个主版本上崩 ⇒ 新增 `tools/run-tests.mjs` 自己枚举文件、再交给 `node --test`。
+H27 让 runner 的空匹配返回 0（空跑当成通过）→ 守门测试必须变红。
+**同族第三形态（同一轮实测）**：runner 在 `node --test` 内部被调用时，继承的 `NODE_TEST_CONTEXT`
+会让子进程 `skipping running files` **但退出 0** —— 又一个"看起来绿、其实一个都没跑"，
+已在 runner 里剥掉该变量并用哨兵文件钉住。
+
 `group.gate` 的两种形态：直接给脚本路径（如 `"tools/check-provenance.mjs"`）；或给
-`"npm-test:tests/<目录>/<glob>.test.mjs"` 用 `node --test <glob>` 跑测试（**目录形态不可靠**：
-`node --test tests/vectors/` 恒红，必须用 glob）。
+`"npm-test:tests/<目录>/<glob>.test.mjs"` → 走 `tools/run-tests.mjs` 跑该 glob
+（**不要**写 `node --test <glob>` 或 `node --test <目录>`，两者各在一个 Node 主版本上崩）。
 
 ## 断言纪律（M1 复核实测出来的，改动向量前先看这里）
 

@@ -53,14 +53,22 @@ function copyRepo() {
  * 跑一个门。`group.gate` 可以是：
  *   - 省略 → 默认布局门（`tools/check-sprint-layout.mjs`）；
  *   - `"tools/xxx.mjs"` → 直接跑该脚本；
- *   - `"npm-test:tests/vectors/*.test.mjs"` → 用 `node --test <glob>` 跑测试文件
- *     （`node --test` 的**目录形态不可靠**：目录会被当成"测试文件"而直接失败，
- *      实测 `node --test tests/vectors/` 恒红；必须用 glob 形态）。
+ *   - `"npm-test:<glob>"` → 用 `tools/run-tests.mjs` 跑该 glob。
+ *
+ * **为什么不再直接 `node --test <glob>`（M6 首推实测缺陷）**：glob 形态是 Node 21 才加的
+ * 能力，Node 20 上 `node --test "tests/**\/*.test.mjs"` 直接 `Could not find …` 退出 1；
+ * 而目录形态在 Node 22+ 又失效。两种形态各在一个主版本上崩 ⇒ 走 `tools/run-tests.mjs`
+ * （自己枚举文件 + 显式文件列表，18/20/22/24 通用）。
+ *
+ * **假绿守卫**：`npm-test:` 组的"预期红"如果建立在"命令根本没跑起来"上，就什么都没证明。
+ * 所以这里先跑一次**未变异**的预检，要求 `exit=0`；预检红 = 这组作废（抛错，不静默）。
  */
 function runGate(dir, gateRel = "tools/check-sprint-layout.mjs") {
   let args;
   if (gateRel.startsWith("npm-test:")) {
-    args = ["--test", gateRel.slice("npm-test:".length)];
+    const runner = join(dir, "tools", "run-tests.mjs");
+    if (!existsSync(runner)) return { code: 2, out: "tools/run-tests.mjs 不存在" };
+    args = [runner, gateRel.slice("npm-test:".length)];
   } else {
     const gate = join(dir, gateRel);
     if (!existsSync(gate)) return { code: 2, out: "门文件不存在" };
@@ -964,6 +972,25 @@ const GROUPS = [
       });
     },
   },
+  // H27：`tools/run-tests.mjs` 的空跑守卫被拆掉 → 守门测试必须变红。
+  // 背景（M6 首推实测缺陷）：`node --test "<glob>"` 在 Node 20 不存在（glob 是 21 才加的），
+  // `node --test <目录>` 在 Node 22+ 已失效；且 runner 若在 `node --test` 内部被调用，
+  // 继承的 `NODE_TEST_CONTEXT` 会让子进程"跳过所有文件但退出 0"。三种都是**空转报绿**。
+  {
+    id: "H27-runtests-empty-match-passes",
+    gate: "npm-test:tests/tools/*.test.mjs",
+    desc: "让 tools/run-tests.mjs 的空匹配返回 0（空跑当成通过）→ 守门测试必须变红",
+    expect: "red",
+    mutate: (dir) => {
+      edit(dir, "tools/run-tests.mjs", (t) => {
+        const from = `    process.stderr.write(\`run-tests: files=0 exit=2 patterns=\${usePatterns.join(",")}\\n\`);
+    return 2;`;
+        if (!t.includes(from)) throw new Error("run-tests 的空跑守卫形态变了，H27 靶子没匹配上");
+        return t.replace(from, `    process.stderr.write(\`run-tests: files=0 exit=0 patterns=\${usePatterns.join(",")}\\n\`);
+    return 0;`);
+      });
+    },
+  },
 ];
 
 const results = [];
@@ -975,6 +1002,17 @@ for (const group of GROUPS) {
   }
   const dir = copyRepo();
   try {
+    // 假绿守卫（M6 首推实测）：`npm-test:` 组的"预期红"必须先证明**基线是绿的**。
+    // 基线自己就红（如 Node 20 上 glob 不被识别 → 命令根本没跑起来）时，
+    // 任何变异都"变红"，这组就什么都没证明。预检失败 → 本组记 error，不静默通过。
+    if (typeof group.gate === "string" && group.gate.startsWith("npm-test:")) {
+      const base = runGate(dir, group.gate);
+      if (base.code !== 0) {
+        throw new Error(
+          `基线预检失败（未变异的门已是 exit=${base.code}）：这组的"预期红"不成立 ${String(base.out).slice(0, 200)}`,
+        );
+      }
+    }
     group.mutate(dir);
     const { code, out } = runGate(dir, group.gate);
     let actual;
