@@ -52,6 +52,96 @@
 | A14 | `*` 与空串等价 | `validRange('*')` / `validRange('')` | `'*'` / `'*'` | ✅ |
 | A15 | 裸三位版本是精确锁定 | `validRange('1.2.3')` | `'1.2.3'`（无 `<` 上界） | ✅ |
 | A16 | `includePrerelease` 会放开预发布 | `satisfies('1.5.0-beta','^1.0.0',{includePrerelease:true})` | `true`（默认 `false`，见 A8） | ✅ |
+| A17 | `1.x` 是**有上界**的部分版本 | `validRange('1.x')`；`satisfies('1.9.0','1.x')` / `satisfies('2.0.0','1.x')` | `>=1.0.0 <2.0.0-0`；`true` / `false` | ✅ **M1 复核实测** |
+| A18 | `>=1.0.0 <=1.0.0` 是**非空**单点 | `validRange('>=1.0.0 <=1.0.0')`；`satisfies('1.0.0',…)` / `satisfies('1.0.1',…)`；`minVersion(…)` | 展开保留原式；`true` / `false`；`1.0.0` | ✅ **M1 复核实测** |
+| A19 | `x` / `X` 与 `*` 等价 | `validRange('x')` / `validRange('X')` | `'*'` / `'*'` | ✅ **M1 复核实测** |
+| A20 | `^0.0` 一族展开后**没有下界** | `validRange('^0')` / `validRange('~0')` / `validRange('^0.0')` / `validRange('~0.0')` / `validRange('^0.0.0')` / `validRange('~0.0.0')` / `validRange('^0.0.x')` | `<1.0.0-0` / `<1.0.0-0` / `<0.1.0-0` / `<0.1.0-0` / `<0.0.1-0` / `<0.1.0-0` / `<0.1.0-0`（**均无 `>=` 下界**）；`satisfies('0.0.0','^0.0')=true`、`satisfies('1.0.0','^0.0')=false`、`satisfies('0.0.1','^0.0.0')=false` | ✅ **M2 实测** |
+| A21 | 等界排除形态**永不满足**（`exact` 不是逃生口） | `validRange('1.0.0 >1.0.0')` / `validRange('1.0.0 <1.0.0')` / `validRange('>1.0.0 1.0.0')`；`satisfies('1.0.0',…)` 三者 | 展开各自保留原式；三次 `satisfies` 均为 **`false`**（`minVersion` 亦为 `null`） | ✅ **M2 实测** |
+| A22 | 真实 npm 根条目是**四类键各写各的** | `npm install` 写出 `packages[""]`，manifest 含 `dependencies` + `optionalDependencies` | `{"dependencies":{"semver":"7.8.5"},"optionalDependencies":{"is-number":"7.0.0"}}`；**dev/optional 不并入 `dependencies`**（manifest 只有 dev 时根条目写 `{"devDependencies":{…}}`） | ✅ **M3 实测** |
+| A23 | 锁条目**可以没有 `version`**（两类真实形态） | ① `file:` 依赖的链接条目 `{"resolved":"../lib","link":true}`（真版本在 `"../lib"` 树外条目里）；② 声明了但没装上的 optional `{"optional":true}` | `satisfies(null,range)` 恒 `false`；对两者 `npm ci` 实测 **PASS**（故不得据此报 `manifest-not-satisfied`） | ✅ **M3 实测** |
+| A24 | `npm ci` 的同步判据是**单向**的 | manifest 删除某声明但锁仍保留 → `npm ci` PASS；manifest 新增声明而锁没有 → `npm ci` `EUSAGE`（退出码 1） | 删除方向宽容、新增方向报错；本工具的 `manifest-changed-unsynced` **两方向都报**（口径定义见 `plan/03` M2），差异登记在 `docs/limitations.md` §3.4 | ✅ **M3 实测** |
+| A25 | 真实 npm 锁的 **hoisting 形态**（同名包两版本并存时的落位） | `npm install --offline`（npm 11.12.1，零联网）写出 20 包锁：`debug@2.6.9` 的 `ms@2.0.0` 提升到顶层、`send@0.18.0` 的 `ms@2.1.3` 嵌在 `node_modules/send/node_modules/` | 锁里 `node_modules/ms@2.0.0` + `node_modules/send/node_modules/ms@2.1.3`；`npm ls --all` **退出码 0**（合法重复，npm 不告警） | ✅ **M4 实测** |
+| A26 | **SARIF 2.1.0 官方 schema 的离线副本**（构建期取一次，审计运行期零联网） | `fetch('https://json.schemastore.org/sarif-2.1.0.json')` → HTTP **200**、112469 字节；落位 `schema/sarif-2.1.0.json`，`sha256 = c96eb2d311c37b0a38cbd18c52d79a68f778bbd2d831abed7412d9850740f785`；`$id = https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json`、`$schema = http://json-schema.org/draft-07/schema#`；schema 里用到的关键字集 = `$id/$ref/$schema/additionalProperties/anyOf/const/default/definitions/description/enum/format/items/maximum/minItems/minimum/oneOf/pattern/properties/required/title/type/uniqueItems`；52 个 `$ref` **全部本地**（无外部引用）；`format` 只出现 `date-time`/`uri`/`uri-reference` 三种 | 校验器 `src/report/json-schema.mjs`（零依赖、draft-07 子集）；判据 `tools/check-report-schema.mjs` 真跑官方 schema；`format` 是 **draft-07 annotation（不产生校验失败）**，命中项登记为"未校验"而非假装通过（`docs/limitations.md` §3.2） | ✅ **M5 实测** |
+
+**A22–A24 加入留痕（M3，2026-10-27）**：这三条是 M3 逐条走查 `lock-manifest-check` 四类 `kind`
+时补的实测行。检验方式是**用真实 npm 11.12.1 写出锁**（`npm install --offline`）再把该锁喂给本工具，
+而不是只用手写夹具——三个缺陷**只有真实锁才会暴露**（手写夹具沿用了错误假设，见下）。
+
+- **A22 → 根声明比对口径错（误报方向）**：旧实现按"npm 把 `optionalDependencies` 也写进根
+  `dependencies`"的假设，用 `{...optionalDependencies, ...dependencies}` 去比 `packages[""].dependencies`。
+  真实锁里两者**各写各的**，于是任何带 optional 依赖的锁都被报
+  `manifest-changed-unsynced`（"锁中根声明缺失"）+ `manifest-not-satisfied`，**工具退出码 1 而
+  `npm ci` 退出码 0**。修复落点 `src/checks/lock-manifest.mjs`（逐类键对比，不跨类合并）+
+  `src/model/lock-common.mjs`（新增 `devDeps` 字段）+ 三份解析器透传。
+- **A23 → 无 `version` 条目被当成"不满足"（编造语义）**：`file:` 链接条目与未安装的 optional
+  占位条目都没有 `version`，`satisfies(null, range)` 恒为 `false`，旧实现据此报
+  `manifest-not-satisfied`（error）。真实 `npm ci` 对两者都 PASS。修复：**无版本 → 降级**
+  （写进报告的 `degraded` 数组，`plan/03` K8「任何降级必须带 `degraded: true` + `reason`」），
+  不再制造 error。
+- **A24 → 树外路径与链接条目被当成 extraneous**：真实 `file:` 锁含
+  `"../lib": {"version":"1.0.0"}` 与 `"node_modules/lib": {"resolved":"../lib","link":true}`，
+  旧实现把前者喂给 `nameFromPath` 解析出 `".."`，于是报 `lock-extra-undeclared("..")`；
+  后者虽可达但其 `version` 为 `null`。修复：`lock-extra-undeclared` 跳过**树外路径**（不以
+  `node_modules/` 开头）与 `link: true` 条目。
+- **A24 同时登记一条口径差异（不改判据）**：真实 `npm ci` 对"manifest 删除声明、锁仍保留"
+  **不报错**（它只校验锁能否满足 manifest，不校验锁是否多余）；本工具的
+  `manifest-changed-unsynced` 按 `plan/03` M2 的定义**两方向都报**。这是**有意的补位**
+  （`npm ci` 的盲区正是本项目的价值点，`plan/00` D1），差异登记在 `docs/limitations.md` §3.4，
+  不冒充"与 npm ci 完全一致"。
+
+**三条均以真实 npm 11.12.1 写出的锁复验**（`npm install --offline` 产物），修复后同一批真实锁
+上本工具与 `npm ci` 的判定一致（error 全部消除，真实 `manifest-not-satisfied` 仍照报）。
+
+**A25 加入留痕（M4，2026-10-28）**：这条是 M4 落真实树夹具（`fixtures/real-tree/`）时补的实测行。
+起因是 `plan/01` §3.3 的验收要求在"本机 20 包真实树、`ms@2.0.0` 与 `ms@2.1.3` 并存、
+`npm ls --all` 退出码 0"上给出确定性结论 —— 而这个形态**只能由真实 npm 写出来**
+（手写夹具很容易把 hoisting 写错；M3 的三条缺陷就是这么漏掉的）。
+实测：`npm install --offline`（npm 11.12.1，只用本机缓存、零联网）真写出 20 个已安装包的锁，
+`ms@2.0.0` 被 `debug@2.6.9` 请求并提升到顶层、`ms@2.1.3` 被 `send@0.18.0` 请求并嵌在
+`node_modules/send/node_modules/` 下；`npm ls --all` 退出码 **0**（合法重复，不告警）。
+本工具在该树上的确定性结论＝**`NOT_CONVERGIBLE` + 最小冲突集**（两条精确锁定 `2.0.0` / `2.1.3`
+无共同解），断言落在 `fixtures/real-tree/expected.json` 与 `tests/proof/real-tree.test.mjs`；
+来源、替换清单与复现命令见 `fixtures/real-tree/SOURCE.md`。
+
+**A20–A21 加入留痕（M2，2026-10-27）**：这两条是 M2 逐条走查 R1–R8 实现判据时补的实测行，
+各对应一个**实测缺陷**（均已修 + 配变异组）：
+
+- **A20 → R3 崩溃**：`checkR3` 原实现 `const [maj, min] = b.lo.v` 拆下界，遇到 A20 这族
+  "展开无下界"的范围会拆到 `NEG_INF`（区间代数内部用 Symbol 表示 −∞），抛
+  `TypeError: symbol is not iterable`。该异常**不会被 `InputError` 包装**，整次审计以退出码 3 终止
+  ——**合法输入被判"输入不可解析"**。复现：`{"p":"^0.0"}` 的 manifest + 锁，实跑 `audit` 得
+  `EXIT=3`、stdout 0 字节。修复落点 `src/rules/range-lint.mjs:checkR3`（**只看上界**，下界缺省不影响
+  "上界被收窄到 0.x 小步进"这一事实；`^0`/`~0`/`^0.x`/`~0.x` 上界为 `<1.0.0-0`，仍**不**报 R3）。
+  变异组 `H6` 钉住。
+- **A21 → R5 漏判**：区间代数里"精确比较器"原带 `exact` 特权字段，且 `branchIsEmpty` 用
+  `!branch.exact &&` 放行——于是 `1.0.0 >1.0.0` / `1.0.0 <1.0.0` / `>1.0.0 1.0.0` 这类
+  **等值端点但有排除侧**的形态被判"非空"，R5 不报（实测三者 `satisfies('1.0.0',…)` 全为 `false`）。
+  修复落点 `src/semver/interval.mjs`：删掉 `exact` 特权字段，等值点判空**只看两侧开闭**；
+  `normalizeRange` 的合并改为"等界 → 开闭标记 OR"（此前等界时后一条会覆盖前一条的排除性）。
+  变异组 `H7` 钉住。
+
+**两条均经 `semver@7.8.5` 与 `semver@7.7.4`（npm 11.12.1 内置）双副本交叉校验，结论一致。**
+
+**已登记的能力缺口（M2 走查所得，非缺陷、不做）**：区间代数判"空"只覆盖**端点几何**，
+不覆盖 semver 的**离散版本域**——`>1.0.0 <1.0.1`、`>1.2.3 <1.2.4`、`<0.0.0`（`0.0.0` 之前
+无版本）、以及预发布可达性（A8）造成的一族，几何上非空但实际无解。这类**不报 R5**是已知边界，
+依据 `data/README.md` §7.1「区间非空只是必要条件」与 `plan/03` M1 R5 的定义（"`>=a <b` 且 `a>=b`"）。
+不用 `minVersion`/`subset` 顶替：实测 `minVersion` 对 `>=1.0.0 <1.0.0 || ^2.0.0` 返回 `null`
+（可满足却报空），`subset(R,'<0.0.0-0')` 与暴力见证在 1316 条语料上 43 条不一致——两者都**不可靠**，
+用它们会把"不编造语义"换成"换一种编造"。
+
+**A17–A19 加入留痕（M1 复核，2026-10-27）**：这三条是 M1 逐条复核 `data/README.md` §1.1 覆盖时补的实测行，
+起因是**两条判据缺口**：
+
+- **A17/A19**：原表只记了 A14（`*` 与空串等价），没记 `x` / `X` 的展开，也没记「部分版本 `1.x` 有上界」——
+  而 `1.x` 正是 R2 判据边界（`plan/03` M1 R2 判「无任何约束」，`1.x` 不得报 R2）。
+- **A18**：原表只有 A11（`>=1.0.0 <1.0.0` 永不可满足），缺「闭环单点非空」这一侧。
+  缺它导致 R5 的实现把 `lo == hi` 一律判空（**实测误报**：`rangeIsEmpty('>=1.0.0 <=1.0.0')` 返回 `true`，
+  而 `satisfies('1.0.0', …)` 实为 `true`）。修复落点 `src/semver/interval.mjs:branchIsEmpty`
+  （空判定必须考虑端点开闭性），回归断言落点 `tests/semver/interval.test.mjs` 与
+  `fixtures/vectors/R5-empty-intersection`。
+
+三条均经 `semver@7.8.5`（项目钉死）与 `semver@7.7.4`（npm 11.12.1 内置副本）**双副本交叉校验，结论一致**。
 
 **A7 校正留痕**：初稿把 npm `0.0` 记为 `>=0.0.0 <0.0.1-0`，实测为 `>=0.0.0 <0.1.0-0`（7.7.4 与 7.8.5 一致），与 node-semver README `^0.0` 条目 `>=0.0.0 <0.1.0-0` 相符。故该行**不构成** npm/Cargo 差异；Cargo 的 `0.0 := >=0.0.0, <0.1.0` 实为上界相同的另一种写法。
 
@@ -135,6 +225,13 @@ EXIT=0
 ```
 
 → **退出码 0，无任何重复版本提示。** 这正是 M3 要补的位置。
+
+> **M4 已把该形态落成真实树夹具**：`fixtures/real-tree/`（20 个已安装包，`npm install --offline`
+> 真写出的锁，`npm ls --all` 退出码 0；来源与替换清单见其 `SOURCE.md`，实测锚点 A25）。
+> 本工具在该树上的结论是**不可收敛 + 最小冲突集**（`NOT_CONVERGIBLE`），不是"可收敛"——
+> 因为真实 npm 写的是**精确锁定**（`debug` 钉 `ms: "2.0.0"`、`send` 钉 `ms: "2.1.3"`），
+> 两个精确锁定没有共同解。手写夹具若把范围改宽松（如 `^2.0.0` / `^2.1.0`）会得出相反的结论，
+> 那不是这棵树的真相。
 
 **场景 A（不满足）**：`send@0.18.0` 声明 `ms@2.0.0`，但树里是 `ms@2.1.3`。
 
@@ -299,7 +396,11 @@ issue 规模（⬜ 软论据）：
 `M ⊆ R` 是**最小冲突集** ⇔ ①`∀ v ∈ V` 存在 `r ∈ M` 使 `satisfies(v, S_r) = false`（即 `M` 无解）；②`∀ M' ⊊ M`，`M'` 有解（即极大性/极小性）。
 
 - 求法：按基数 `k = 2, 3, …` 升序遍历子集，首个无解子集即最小（请求者数通常 < 20）。
-- 上限 `--max-requesters`（默认 12）；超限**必须**在输出中写 `"degraded": true, "reason": "requesters > max"`，并降级为"贪心近似"，**不得静默冒充最小集**。
+- 上限 `--max-requesters`（默认 12）；超限**必须**在输出中写 `"degraded": true, "reason": "requesters > max"`。
+  降级实现是**删除法**（deletion-based）：从全量 `R`（此时已知无解）出发逐个尝试移除，只有移除后**仍无解**才真的移除。
+  结果**仍满足上面 ①②**（无解 + 移除任一元素后有解），但**不保证基数最小**、也**不列全部平局集** ——
+  降级的只是这两条，**不是"是不是真冲突"**。`M` 可满足却报成 `minimalConflictSet` 是编造冲突
+  （M4 实测修正：旧实现直接取"候选最少的 2 条"，实测会返回可满足的集合；留痕见 `docs/limitations.md` §5.0.4）。
 - 平局：多个同基数 MUS 时按请求者路径字典序排序，全部返回（不随机选一个）。
 
 ### 7.3 退出码

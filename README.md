@@ -13,11 +13,11 @@
 | 里程碑 | 内容 | 状态 |
 |---|---|---|
 | M0 | 计划套件 + 方法论装订 + 部署骨架 | ✅ |
-| M1 | 数据先行（12 组差分向量） | ⬜ 12 组已提前落位并端到端跑通；剩余按台账 §1.1 逐条复核覆盖 |
-| M2 | `range-lint`（R1–R8） | ⬜ 骨架已实现 R1–R8；剩余向量级复核 |
-| M3 | `lock-manifest-check`（v1/v2/v3） | ⬜ 骨架已实现四类 kind + 三版本解析 |
-| M4 | `dedupe-feasibility`（三态 + MUS） | ⬜ 骨架已实现；真实树夹具待落 |
-| M5 | `conflict-explain` + `report-ci` | ⬜ 骨架已实现三格式 + 退出码矩阵 |
+| M1 | 数据先行（12 组差分向量） | ✅ 12 组端到端跑通；台账 A1–A19 逐条复核完成（覆盖率由 `PROV.COVERAGE` 门断言） |
+| M2 | `range-lint`（R1–R8） | ✅ R1–R8 全族正反例矩阵；`expandedRange` 逐 finding 由 `validRange` 复算（12 组向量差分）；走查中修掉 R3 `^0.0` 族崩溃与 R5 等界开闭漏判 |
+| M3 | `lock-manifest-check`（v1/v2/v3） | ✅ 四类 kind 逐条与 `plan/03` 对齐；v1/v2/v3 各有夹具（向量集 12 → 14 组）；退出码 3 三形态端到端；用真实 npm 11.12.1 锁复验时修掉三个实测缺陷（A22–A24） |
+| M4 | `dedupe-feasibility`（三态 + MUS） | ✅ 20 包真实树（`fixtures/real-tree/`，`npm ls --all` 退出码 0）给出确定性结论＝不可收敛 + 最小冲突集；MUS 可机械校验（无解 + 移除任一元素后有解，逐夹具差分复算）；超限 `degraded` 仍是无解极小集；向量集 14 → 15 组 |
+| M5 | `conflict-explain` + `report-ci` | ✅ `minimalSet` 属性测试（含 `--max-requesters` 超限降级路径）；退出码 0/1/2/3/4 全覆盖；SARIF 过**官方 schema 离线副本**（A26）+ 三格式产物集合一致 + `--out` 原子写；走查中修掉报告层四个实测缺陷（A26 / §5.0.5） |
 | M6 | 发布 | ⬜ |
 
 版本 `0.1.0`（M0 骨架）。能力面随里程碑推进，见 `plan/05-里程碑与发布.md`。
@@ -84,6 +84,27 @@ node tools/offline-smoke.mjs      # 进程内把 dns/net/tls/http 钩子改成�
 
 CI 里另有 `docker run --network none` 的独立 job（构建期可联网、**运行期完全无网络**）。
 
+## 三种输出格式
+
+```bash
+npx versionaudit audit <dir>                          # text（默认）
+npx versionaudit audit <dir> --format=json            # 稳定 schema + policy 回显
+npx versionaudit audit <dir> --format=sarif --out r.sarif   # SARIF 2.1.0
+```
+
+**三格式报同一批产物**：`findings`（M1/M2）、`dedupe`（M3）、`conflicts`（M4）三类都进
+SARIF；真实树这种"error 全在 dedupe/conflicts 里、`findings` 为空"的输入是这条的试金石。
+
+SARIF 合规由 **官方 schema 的离线副本**真校验（`schema/sarif-2.1.0.json`，OASIS 2.1.0；
+来源与 `sha256` 见 [`data/README.md`](./data/README.md) §1.1 A26），不是手写字段断言：
+
+```bash
+node tools/check-report-schema.mjs   # 报告门：schema / 三格式一致 / --out 原子写（跑全部夹具）
+```
+
+已知边界：schema 里的 `format`（`uri-reference`/`date-time`）按 draft-07 annotation 语义
+**未校验**，由校验器显式登记（见 [`docs/limitations.md`](./docs/limitations.md) §3.2）。
+
 ## 文档
 
 | 文件 | 内容 |
@@ -91,7 +112,7 @@ CI 里另有 `docker run --network none` 的独立 job（构建期可联网、**
 | [`plan/00-README总览.md`](./plan/00-README总览.md) | 决策记录、弃选项、承诺-证据台账、里程碑 |
 | [`plan/01-题目文档.md`](./plan/01-题目文档.md) | 项目题面（定位、任务要求、评分、边界） |
 | [`plan/02-架构与技术选型.md`](./plan/02-架构与技术选型.md) | 分层、IR、区间代数与 semver 的分工 |
-| [`plan/03-模块详设.md`](./plan/03-模块详设.md) | M1–M5 的输入输出与判定口径、契约冻结 K1–K10 |
+| [`plan/03-模块详设.md`](./plan/03-模块详设.md) | M1–M5 的输入输出与判定口径、契约冻结 K1–K10 + K25/K26 |
 | [`plan/04-数据计划.md`](./plan/04-数据计划.md) | 向量集、真值纪律、冻结与再生成 |
 | [`plan/05-里程碑与发布.md`](./plan/05-里程碑与发布.md) | DoD、每周可演示、已知未验证项 |
 | [`plan/06-交付对标与决策.md`](./plan/06-交付对标与决策.md) | 评分对标、交付材料、决策记录、风险登记 |
@@ -104,7 +125,10 @@ CI 里另有 `docker run --network none` 的独立 job（构建期可联网、**
 ```bash
 node tools/check-sprint-layout.mjs   # 布局门（方法论装订）
 node tools/check-desensitized.mjs    # 脱敏门
-npm test                             # node:test 全量
+node tools/check-report-schema.mjs   # 报告门（SARIF schema / 三格式一致 / --out 原子写）
+npm test                             # node:test 全量（192 条）
+npm run gate:all                     # 全部门 + 测试 + 离线冒烟
+node tools/verify-layout-mutations.mjs   # 门的自证（52 组变异，每组都必须变红）
 ```
 
 ## 边界（节选，全文见 `docs/limitations.md`）

@@ -85,9 +85,9 @@
 
 | 承诺 | 证据 | 状态 |
 |---|---|---|
-| 范围展开不编造 | 12 条语义实测台账（node-semver 7.8.5 / packaging 26.3）；`tests/semver/interval.test.mjs` 逐条覆盖 A1–A16；`expandedRange` 差异测试 | ✅ M0 已可跑红 |
+| 范围展开不编造 | **19 条**语义实测台账（node-semver 7.8.5 / packaging 26.3；A1–A16 为 M0，A17–A19 为 M1 复核补录）；`tests/semver/interval.test.mjs` 逐条覆盖 A1–A19；`expandedRange` 差异测试；溯源门的 `PROV.COVERAGE` 断言"台账每条 A 编号都被向量引用或有显式豁免"（含幽灵锚点/僵尸登记检测） | ✅ 已验证 |
 | 锁不一致给请求者路径 | 实测 `npm ci` 只报 `send@0.18.0 does not satisfy send@0.19.2`，无范围/来源；M2 每条 finding 强制带 `requesterPath`，`tests/checks/lock-manifest` 断言 | ✅ 已验证短板且已补位 |
-| 重复版本不告警 | 实测双 `ms` 版本树 `npm ls --all` 退出码 0；M3 给出三态判定，`tests/proof/m3-dedupe` 覆盖收敛与不可收敛两态 | ✅ 已验证短板且已补位 |
+| 重复版本不告警 | 实测双 `ms` 版本树 `npm ls --all` 退出码 0（A25：`npm install --offline` 真写出的 20 包树）；M4 给出三态判定 + 可机械校验的最小冲突集：`tests/proof/real-tree.test.mjs`（真实树确定性结论）、`tests/proof/m3-dedupe`（三态/降级/两态 reason）、`tests/rules/range-diff.test.mjs`（逐夹具复算 MUS 两条性质与 targets 完整性） | ✅ 已验证短板且已补位 |
 | 去重只有布尔 | `pnpm dedupe --check` help 原文 + pnpm#16356（`dedupe` 后 `--check` 仍失败） | ✅ 已验证短板 |
 | 同样字符不同含义 | npm vs Cargo 官方 reference 原文对照 | ✅ 已验证 |
 | 交集层是空的 | `semver intersection` total_count=4，最高 9★ | ⬜ 软论据（403 限流已标注） |
@@ -98,11 +98,11 @@
 | 里程碑 | 内容 | 状态 | 完成条件（DoD） |
 |---|---|---|---|
 | M0 | 计划套件 + 方法论装订 + 部署骨架 | ✅ | `plan/00–06` 齐备；`AGENTS.md` + 布局门 + 脱敏门在 CI 有步骤；CLI 骨架 `--version`/`--help` 可跑；`npm test` 绿（本地等价校验，未接远端，CI 待首推验证） |
-| M1 | 数据先行（向量集） | ⬜ | 12 组目录齐备（**已提前落位，端到端 12/12 跑通**）；每目录 `expected.json` 含 `mustContain`/`mustNotContain`/`exitCode`/`implementationVersions`/`sources`；**剩余：按 `data/README.md` §1.1 逐条复核覆盖率并补齐正反例对** |
-| M2 | 范围语义（`range-lint` 实现 R1–R8） | ⬜ | 向量全绿；`expandedRange` 全部来自库调用；差分测试（工具 vs 直接用 semver 库）一致 |
-| M3 | 锁一致性（`lock-manifest-check` v1/v2/v3） | ⬜ | 复现 `send` 场景并输出声明项/范围/锁中版本/请求者路径；三版本锁均有用例 |
-| M4 | 收敛可行性（`dedupe-feasibility` 三态 + MUS） | ⬜ | 20 包真实树上给出确定性结论；MUS 可机械校验；超限降级显式声明 |
-| M5 | 冲突解释与门禁（`conflict-explain` + `report-ci`） | ⬜ | `minimalSet` 属性测试通过；退出码矩阵全覆盖；JSON/SARIF 通过 schema；零联网验收 |
+| M1 | 数据先行（向量集） | ✅ | 12 组目录齐备、端到端 12/12；每目录 `expected.json` 含 `mustContain`/`mustNotContain`/`exitCode`/`implementationVersions`/`sources`；**按 `data/README.md` §1.1 逐条复核完成**：台账 19 条实测（A1–A19）全部有向量引用或显式豁免（`PROV.COVERAGE` 门断言）；补齐正反例对 + **每向量输入绑定**断言；复核中修掉 R5 闭环单点误报与 4 条空心断言 |
+| M2 | 范围语义（`range-lint` 实现 R1–R8） | ✅ | 向量全绿；`expandedRange` 全部来自库调用（`tests/rules/range-diff.test.mjs` 逐 finding 复算 12 组向量）；差分测试（工具 vs 直接用 semver 库）一致；R1–R8 正反例全族矩阵齐（R4/R7/R8 各补「同族多形态」反例矩阵）；走查中修掉 R3 的 `^0.0` 族崩溃与 R5 的等界开闭漏判，各配变异组（`H6`/`H7`） |
+| M3 | 锁一致性（`lock-manifest-check` v1/v2/v3） | ✅ | 复现 `send` 场景并输出声明项/范围/锁中版本/请求者路径（`fixtures/vectors/M2-lock-manifest` 断言）；三种 lockfileVersion 各有夹具（v3 = M2 向量、v1/v2 = 新增 `M3-lockfile-v1`/`M3-lockfile-v2`，向量集 12 → 14 组）；退出码 3 三形态（结构混用 / 不支持版本 / JSON 语法错误）端到端覆盖于 `tests/exit-codes/lock-input.test.mjs`；**用真实 npm 11.12.1 写出的锁逐条复验四类 kind**，修掉三个实测缺陷（台账 A22–A24；变异组 `H9`–`H13`） |
+| M4 | 收敛可行性（`dedupe-feasibility` 三态 + MUS） | ✅ | 20 包真实树（`fixtures/real-tree/`：`npm install --offline` 真写出的锁、`npm ls --all` 退出码 0）给出确定性结论＝`NOT_CONVERGIBLE` + 最小冲突集（`tests/proof/real-tree.test.mjs`）；MUS 可机械校验（无解 + 移除任一元素后有解，逐夹具差分复算；`M3-ms-two-targets` 钉目标完整性）；超限显式 `degraded`（删除法保证仍是无解极小集）；修掉两个实测缺陷（差分 MUS 面真空 / 降级返回可满足集合；变异组 `H14`–`H22`、`P5`） |
+| M5 | 冲突解释与门禁（`conflict-explain` + `report-ci`） | ✅ | `minimalSet` 属性测试通过（含 `--max-requesters` 超限的降级路径：仍无解 + 极小）；退出码 0/1/2/3/4 全覆盖；**SARIF 过官方 schema 的离线副本**（`schema/sarif-2.1.0.json`，A26；`tools/check-report-schema.mjs` 真跑 16 个夹具）+ 三格式产物集合一致（期望值独立枚举）；零联网验收（`offline-smoke`）。走查中修掉报告层四个实测缺陷（`ruleId: "undefined"` / SARIF 丢 M3·M4 产物 / `summary.highest` 漏算 / text 降级打错字段；变异组 `H23`–`H26`、`P6`） |
 | M6 | 发布（GitHub 公开仓库） | ⬜ | **DoD = git tag + GitHub Release 附产物 + 发布留档三件套**；署名 `yuluo554` |
 
 ## 仓库约定

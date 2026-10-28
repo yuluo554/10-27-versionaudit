@@ -24,23 +24,32 @@
 一个范围展开后（`validRange`）是一串比较器的合取，`||` 分隔多个分支。每个分支规范化为：
 
 ```
-{ lo: <bound>, hi: <bound>, exact: <bound|null>, exclusiveLo: bool, exclusiveHi: bool }
+{ lo: <bound>, hi: <bound>, exclusiveLo: bool, exclusiveHi: bool }
 ```
 
 `bound` 是 `{ v: [major, minor, patch] | ±INF, pre: "<prerelease>" | null }`。
+
+> **M2 变更**：早期版本还有 `exact: <bound|null>` 字段（精确比较器的"单点"标记）。它当年既是
+> `branchIsEmpty` 的逃生口，又要在合并时特判——**已删除**：精确比较器现在只是普通的单点闭区间
+> （`lo == hi` 且两侧都不开），走与 `>=`/`<=` 完全相同的合并逻辑。
+> 合并时的关键纪律：**等界端点的开闭标记要 `OR`**（`>1.0.0 1.0.0` 里"排除 1.0.0"不能被后一条抹掉）。
 
 三条关键口径：
 
 1. **闭/开下界**：`>=` 是闭，`>` 是开（记录 `exclusiveLo`）。**不制造"后继版本"**——
    给 `>1.2.3` 编一个 `1.2.4` 会改变语义（1.2.3 的预发布与 1.2.4 之间没有可比的后继）。
+   **这也是 R5 判空的能力边界**（`docs/limitations.md` §5.1）：`>1.0.0 <1.0.1` 几何非空但实际无解，
+   本工具不报。
 2. **`-0` 上界**：npm 展开的上界一律带 `-0`（如 `<0.3.0-0`），作用是排除该上界的预发布
    （`data/README.md` §2 已把这条与"不同含义"分开陈述）。
 3. **预发布排序**：同三元组时无预发布 > 有预发布；预发布标识符按 SemVer §11 比较
    （数字按数值、数字恒小于字母数字、前缀短者小）。这段是手写实现，测试覆盖
    `alpha` / `alpha.1` / `beta` / `beta.2` 的边界。
 
-**空分支判定**：`lo > hi` → 空；`lo == hi` 且不是"精确版本"语义 → 空（`>=1.0.0 <1.0.0` 属于后者，
-对应 `data/README.md` A11 的实测：`satisfies` 对任何版本都为 false）。
+**空分支判定**：`lo > hi` → 空；`lo == hi` 且**任一侧开** → 空（`>=1.0.0 <1.0.0` 与 `>1.0.0 <=1.0.0`
+都属于这类，对应 `data/README.md` A11 的实测）；`lo == hi` 且**两侧都闭** → **非空单点**
+（`>=1.0.0 <=1.0.0`，A18）。**精确比较器不享有任何"非空"特权**：`1.0.0 <1.0.0` / `1.0.0 >1.0.0` /
+`>1.0.0 1.0.0` 三个都是空（A21）。
 
 ## 三、多路求交
 
@@ -100,8 +109,12 @@ for range in ranges:
   而且会让"移除任一元素后冲突消失"这条属性测试在单元素集上无意义。
 - **极小性要显式复核**：组合枚举写错（少一层循环、边界 off-by-one）时，
   外层 `k` 层的首个命中看起来仍然"最小"，只有复核 `k-1` 子集才抓得到。
-- **超限必须显式降级**：`--max-requesters` 默认 12，超限返回贪心近似并带
-  `degraded: true` + `reason`。**不许静默冒充最小集**（`plan/03` K8）。
+- **超限降级不能把"不是冲突"报成冲突**（M4 实测修正）：旧实现超限时直接取"候选最少的 2 条"，
+  而那 2 条可能**可满足**——报告里却叫它 `minimalConflictSet`。现在超限改走**删除法**
+  （deletion-based）：从全量 `R`（此时已知无解）出发逐个尝试移除，只有移除后仍无解才真的移除。
+  O(n) 次可满足性检查，结果**仍是无解集且满足"移除任一元素后有解"**，只是**不保证基数最小**、
+  **不列全部平局集** —— 这正是 `degraded: true` + `reason: "requesters > max"` 要声明的东西
+  （`plan/03` K8；`data/README.md` §7.2）。
 
 ## 六、结论的可机械校验性
 
@@ -110,11 +123,14 @@ for range in ranges:
 
 | 结论 | 机械校验方式 | 落点 |
 |---|---|---|
-| `CONVERGIBLE` 的目标 `v` | 对每个请求者 `satisfies(v, S_i)` 必须为 true | `tests/proof/m3-dedupe.test.mjs` |
-| `CONVERGIBLE` 的目标列表完整 | 枚举全部锁定版本，凡满足全体的都必须在 `targets` 里 | `tests/proof/m3-dedupe.test.mjs` |
-| `NOT_CONVERGIBLE` 的 MUS | ① `M` 无解；② 移除**任一**元素后有解 | `tests/proof/m3-dedupe.test.mjs` / `m4-minimality.test.mjs` |
-| M4 的 `minimalSet` | 同上（复用同一份 MUS 内核） | `tests/proof/m4-minimality.test.mjs` |
+| `CONVERGIBLE` 的目标 `v` | 对每个请求者 `satisfies(v, S_i)` 必须为 true | `tests/proof/m3-dedupe.test.mjs` + `tests/rules/range-diff.test.mjs` |
+| `CONVERGIBLE` 的目标列表完整 | 枚举全部锁定版本，凡满足全体的都必须在 `targets` 里 | `tests/rules/range-diff.test.mjs`（逐夹具）+ `M3-ms-two-targets` 向量（两个目标都要列） |
+| `NOT_CONVERGIBLE` / `REQUIRES_OVERRIDE` 的 MUS | ① `M` 无解；② 移除**任一**元素后有解（**降级结果也必须满足**） | `tests/rules/range-diff.test.mjs`（逐夹具复算）+ `tests/proof/m3-dedupe.test.mjs` + `tests/proof/real-tree.test.mjs` |
+| 真实树的确定性结论 | 与原始 JSON 的请求者范围逐一核对；`findings` 为空（合法树不误报） | `tests/proof/real-tree.test.mjs` |
+| M4 的 `minimalSet` | 同上（复用同一份 MUS 内核），**含 `--max-requesters` 超限的降级路径** | `tests/proof/m4-minimality.test.mjs` |
 | 每条范围展开 | `validRange` 复算必须逐字节相同（退出码 4 的自证） | `tests/exit-codes/inconsistency.test.mjs` |
+| 报告的 SARIF 合规 | 官方 schema 的**离线副本**真校验（不是手写字段断言）；`format` 按 draft-07 annotation 登记为未校验 | `tools/check-report-schema.mjs` + `tests/report/report.test.mjs`（A26） |
+| 三格式内容一致 | 同一输入下 `(ruleId, subject)` 集合在 text/json/sarif 之间相同；期望值**独立枚举** | `tools/check-report-schema.mjs`（变异组 `H24`） |
 
 ## 七、已知限制（诚实边界）
 
