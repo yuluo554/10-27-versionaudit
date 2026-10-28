@@ -313,5 +313,12 @@ H24 变异（把 dedupe/conflicts 段关掉）**假绿**——因为两侧同时
   ¶P8 记录了 packaging 26.0 的变更）。因此 `semver` 在 `package.json` 里**钉死不写 `^`**，
   且每条向量的 `expected.json` 都带 `implementationVersions`；版本漂移会让向量测试直接失败
   （而不是静默产出新结论）。
-- **跨 Node 主版本**：排序/序列化不依赖 Node 特性，`engines` 声明 `>=20`。首期未在多个
-  Node 版本上实测矩阵（CI 待首推验证）。
+- **跨 Node 主版本**：排序/序列化不依赖 Node 特性，`engines` 声明 `>=20`。
+  **CI 矩阵已实测 Node 20 / 22 / 24 三格全绿**（见 `plan/RELEASE-M6.md` §二 的 run 记录；
+  该矩阵在 `.github/workflows/ci.yml` 的 `test` job 里按 `node: ["20","22","24"]` 展开）。
+  入口另有**运行时下限检查**：`src/policy/node-floor.mjs` 的 `MIN_NODE_MAJOR`（= `engines.node`
+  的数值）由 `bin/versionaudit.mjs` 在解析参数**之前**校验；不满足时打一行
+  `versionaudit: requires Node >= 20 (running <实际版本>)` 并以退出码 **5**（环境档，
+  见 `src/cli/exit.mjs`）退出 —— 不会退化成 `ERR_UNKNOWN_FILE_EXTENSION` 之类的间接错误。
+  每份向量的 `expected.json` 也声明了 `implementationVersions.node`，向量测试会断言当前解释器
+  满足该范围（声明与消费同源，不再是装饰）。
